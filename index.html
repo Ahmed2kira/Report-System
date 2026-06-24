@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام التقارير البيئية</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --white:#ffffff; --off-white:#f8f9fb; --light-gray:#f0f2f5;
+            --border:#e2e6ec; --text-dark:#0f1923; --text-mid:#3d4f63;
+            --text-light:#7a8fa6; --accent:#1a5cff; --accent-light:#e8eeff;
+            --accent-dark:#1040cc; --green:#10b981; --green-light:#d1fae5;
+            --gold:#f59e0b; --gold-light:#fef3c7; --red:#ef4444;
+            --red-light:#fee2e2; --purple:#8b5cf6;
+            --shadow-sm:0 2px 8px rgba(15,25,35,.07);
+            --shadow-md:0 6px 24px rgba(15,25,35,.10);
+            --shadow-lg:0 16px 48px rgba(15,25,35,.13);
+            --radius:18px; --radius-sm:10px;
+        }
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Cairo',sans-serif;background:var(--off-white);color:var(--text-dark);min-height:100vh;overflow-x:hidden;}
+
+        /* PRIVACY */
+        #privacy-overlay{position:fixed;inset:0;background:rgba(10,18,30,.72);backdrop-filter:blur(10px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .3s ease;}
+        #privacy-overlay.hidden{opacity:0;pointer-events:none;transition:opacity .4s ease;}
+        .privacy-card{background:white;border-radius:28px;padding:50px 44px 40px;max-width:520px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,.25);text-align:center;animation:slideUp .4s cubic-bezier(.34,1.56,.64,1);}
+        .privacy-icon-wrap{width:80px;height:80px;background:linear-gradient(135deg,#1a5cff,#8b5cf6);border-radius:22px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;box-shadow:0 10px 30px rgba(26,92,255,.3);}
+        .privacy-icon-wrap i{font-size:36px;color:white;}
+        .privacy-card h2{font-size:26px;font-weight:800;color:var(--text-dark);margin-bottom:12px;}
+        .privacy-card .subtitle{font-size:15px;color:var(--text-light);margin-bottom:28px;line-height:1.7;}
+        .privacy-points{text-align:right;background:var(--off-white);border-radius:14px;padding:20px 22px;margin-bottom:28px;}
+        .privacy-point{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;font-size:14.5px;color:var(--text-mid);line-height:1.6;}
+        .privacy-point:last-child{margin-bottom:0;}
+        .privacy-point .dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+        .privacy-point .dot i{font-size:11px;color:white;}
+        .privacy-point:nth-child(1) .dot{background:var(--green);}
+        .privacy-point:nth-child(2) .dot{background:var(--accent);}
+        .privacy-point:nth-child(3) .dot{background:var(--gold);}
+        .privacy-point:nth-child(4) .dot{background:var(--purple);}
+        .privacy-btn{width:100%;padding:16px;background:linear-gradient(135deg,#1a5cff,#1040cc);color:white;border:none;border-radius:14px;font-family:'Cairo',sans-serif;font-size:17px;font-weight:700;cursor:pointer;transition:.2s;box-shadow:0 6px 20px rgba(26,92,255,.3);}
+        .privacy-btn:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(26,92,255,.4);}
+
+        /* APP */
+        #app{display:none;}
+        #app.visible{display:block;}
+        .top-header{background:white;border-bottom:1px solid var(--border);padding:0 40px;height:68px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-sm);}
+        .header-logo{display:flex;align-items:center;gap:12px;}
+        .logo-icon{width:40px;height:40px;background:linear-gradient(135deg,#1a5cff,#8b5cf6);border-radius:11px;display:flex;align-items:center;justify-content:center;}
+        .logo-icon i{color:white;font-size:18px;}
+        .logo-text{font-size:17px;font-weight:800;color:var(--text-dark);}
+        .logo-text span{color:var(--accent);}
+        .header-badge{background:var(--green-light);color:var(--green);padding:5px 14px;border-radius:30px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;}
+        .header-badge::before{content:'';width:7px;height:7px;background:var(--green);border-radius:50%;}
+
+        /* PAGES */
+        .page{display:none;padding:40px;max-width:1200px;margin:0 auto;}
+        .page.active{display:block;animation:fadeInUp .4s ease;}
+        .breadcrumb{display:flex;align-items:center;gap:8px;margin-bottom:32px;font-size:14px;color:var(--text-light);}
+        .breadcrumb span{cursor:pointer;transition:color .2s;}
+        .breadcrumb span:hover{color:var(--accent);}
+        .breadcrumb span.active{color:var(--text-dark);font-weight:600;cursor:default;}
+        .breadcrumb i{font-size:11px;color:var(--border);transform:scaleX(-1);}
+        .page-title{margin-bottom:36px;}
+        .page-title h1{font-size:32px;font-weight:800;color:var(--text-dark);margin-bottom:6px;}
+        .page-title p{font-size:15px;color:var(--text-light);}
+
+        /* CATEGORIES */
+        .categories-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;}
+        .category-card{background:white;border-radius:var(--radius);padding:32px 28px;cursor:pointer;transition:all .3s cubic-bezier(.34,1.56,.64,1);border:1.5px solid var(--border);position:relative;overflow:hidden;}
+        .category-card::before{content:'';position:absolute;top:0;right:0;width:120px;height:120px;border-radius:0 0 0 120px;opacity:.07;}
+        .category-card:hover{transform:translateY(-6px);box-shadow:var(--shadow-lg);border-color:transparent;}
+        .category-card.blue::before{background:var(--accent);}
+        .category-card.green::before{background:var(--green);}
+        .category-card.gold::before{background:var(--gold);}
+        .category-card.blue:hover{box-shadow:0 16px 48px rgba(26,92,255,.15);}
+        .category-card.green:hover{box-shadow:0 16px 48px rgba(16,185,129,.15);}
+        .category-card.gold:hover{box-shadow:0 16px 48px rgba(245,158,11,.15);}
+        .cat-icon{width:58px;height:58px;border-radius:16px;display:flex;align-items:center;justify-content:center;margin-bottom:20px;}
+        .cat-icon i{font-size:26px;}
+        .blue .cat-icon{background:var(--accent-light);color:var(--accent);}
+        .green .cat-icon{background:var(--green-light);color:var(--green);}
+        .gold .cat-icon{background:var(--gold-light);color:var(--gold);}
+        .cat-title{font-size:20px;font-weight:800;margin-bottom:8px;color:var(--text-dark);}
+        .cat-desc{font-size:14px;color:var(--text-light);line-height:1.7;margin-bottom:22px;}
+        .cat-footer{display:flex;align-items:center;justify-content:space-between;}
+        .cat-count{font-size:13px;color:var(--text-light);display:flex;align-items:center;gap:6px;}
+        .cat-count strong{font-size:15px;font-weight:700;}
+        .blue .cat-count strong{color:var(--accent);}
+        .green .cat-count strong{color:var(--green);}
+        .gold .cat-count strong{color:var(--gold);}
+        .cat-arrow{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:.2s;}
+        .blue .cat-arrow{background:var(--accent-light);color:var(--accent);}
+        .green .cat-arrow{background:var(--green-light);color:var(--green);}
+        .gold .cat-arrow{background:var(--gold-light);color:var(--gold);}
+        .category-card:hover .cat-arrow{transform:translateX(-4px);}
+
+        /* REPORTS LIST */
+        .reports-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px;}
+        .report-card{background:white;border-radius:var(--radius);padding:26px 22px;cursor:pointer;border:1.5px solid var(--border);transition:all .25s ease;display:flex;flex-direction:column;gap:16px;}
+        .report-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:var(--accent);}
+        .report-card-top{display:flex;align-items:flex-start;gap:14px;}
+        .report-num{width:44px;height:44px;background:var(--accent-light);color:var(--accent);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;flex-shrink:0;}
+        .report-num.special{background:linear-gradient(135deg,#1a5cff,#8b5cf6);color:white;}
+        .report-info h3{font-size:16px;font-weight:700;color:var(--text-dark);margin-bottom:4px;line-height:1.4;}
+        .report-info p{font-size:13px;color:var(--text-light);line-height:1.5;}
+        .report-tags{display:flex;flex-wrap:wrap;gap:6px;}
+        .tag{background:var(--light-gray);color:var(--text-mid);padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500;}
+        .report-open-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;background:var(--accent-light);color:var(--accent);border-radius:var(--radius-sm);font-size:14px;font-weight:700;transition:.2s;border:none;font-family:'Cairo',sans-serif;cursor:pointer;width:100%;}
+        .report-open-btn:hover{background:var(--accent);color:white;}
+
+        /* FORM PAGE */
+        .form-layout{display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start;}
+        .form-card{background:white;border-radius:var(--radius);padding:36px;border:1.5px solid var(--border);box-shadow:var(--shadow-sm);}
+        .form-section-title{font-size:18px;font-weight:700;color:var(--text-dark);margin-bottom:24px;padding-bottom:16px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;gap:10px;}
+        .form-section-title i{width:34px;height:34px;background:var(--accent-light);color:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+        .input-group{margin-bottom:22px;}
+        .input-group label{display:block;font-size:14px;font-weight:600;color:var(--text-mid);margin-bottom:8px;}
+        .input-group label .req{color:var(--red);margin-right:3px;}
+        .input-group input,.input-group textarea,.input-group select{width:100%;padding:13px 16px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--off-white);color:var(--text-dark);font-family:'Cairo',sans-serif;font-size:15px;outline:none;transition:border-color .2s,box-shadow .2s;}
+        .input-group input:focus,.input-group textarea:focus{border-color:var(--accent);background:white;box-shadow:0 0 0 4px rgba(26,92,255,.08);}
+        .input-group textarea{min-height:110px;resize:vertical;line-height:1.7;}
+        .input-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+        /* SIDEBAR */
+        .sidebar-card{background:white;border-radius:var(--radius);padding:26px;border:1.5px solid var(--border);margin-bottom:18px;box-shadow:var(--shadow-sm);}
+        .sidebar-title{font-size:15px;font-weight:700;color:var(--text-dark);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+        .sidebar-title i{color:var(--accent);}
+        .meta-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--light-gray);font-size:14px;}
+        .meta-item:last-child{border-bottom:none;}
+        .meta-item i{color:var(--text-light);width:16px;text-align:center;}
+        .meta-label{color:var(--text-light);flex:1;}
+        .meta-val{font-weight:600;color:var(--text-dark);}
+        .save-btn{width:100%;padding:16px;background:linear-gradient(135deg,#1a5cff,#1040cc);color:white;border:none;border-radius:14px;font-family:'Cairo',sans-serif;font-size:16px;font-weight:700;cursor:pointer;transition:.25s;box-shadow:0 6px 20px rgba(26,92,255,.28);display:flex;align-items:center;justify-content:center;gap:10px;}
+        .save-btn:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(26,92,255,.38);}
+        .save-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
+        .btn-secondary{width:100%;padding:13px;background:var(--light-gray);color:var(--text-mid);border:none;border-radius:12px;font-family:'Cairo',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;}
+        .btn-secondary:hover{background:var(--border);color:var(--text-dark);}
+        .progress-wrap{margin-bottom:16px;}
+        .progress-label{display:flex;justify-content:space-between;font-size:13px;color:var(--text-light);margin-bottom:6px;}
+        .progress-bar{height:6px;background:var(--light-gray);border-radius:10px;overflow:hidden;}
+        .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#8b5cf6);border-radius:10px;transition:width .4s ease;width:0%;}
+
+        /* ===== FIXED REPORT PAGE (UAV) ===== */
+        .uav-layout{display:grid;grid-template-columns:380px 1fr;gap:24px;align-items:start;}
+        .uav-fields-panel{}
+        .uav-preview-panel{background:white;border-radius:var(--radius);border:1.5px solid var(--border);box-shadow:var(--shadow-sm);overflow:hidden;position:sticky;top:88px;}
+        .uav-preview-header{background:var(--text-dark);color:white;padding:13px 20px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:10px;}
+        .live-badge{background:#ef4444;color:white;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:1px;animation:livepulse 1.8s ease-in-out infinite;}
+        @keyframes livepulse{0%,100%{opacity:1}50%{opacity:.4}}
+        .uav-preview-scroll{max-height:calc(100vh - 200px);overflow-y:auto;background:#e8eaed;padding:10px;}
+
+        /* THE UAV DOCUMENT - with TOC sidebar */
+        .uav-doc-wrapper{display:flex;gap:0;background:white;border-radius:6px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.12);font-family:'Cairo',sans-serif;font-size:11px;color:#1a1a1a;}
+        .uav-doc-toc{width:140px;flex-shrink:0;background:#f5f7fa;border-left:1px solid #e2e6ec;padding:12px 8px;overflow-y:auto;max-height:580px;direction:rtl;}
+        .uav-doc-toc-title{font-size:10px;font-weight:800;color:#0f1923;margin-bottom:10px;padding-bottom:6px;border-bottom:1.5px solid #e2e6ec;text-align:center;}
+        .uav-toc-item{padding:5px 8px;font-size:9px;color:#4a5e72;cursor:pointer;border-radius:4px;transition:all .2s;display:flex;align-items:center;gap:4px;margin-bottom:1px;border-right:2px solid transparent;}
+        .uav-toc-item:hover{background:#e8eeff;color:var(--accent);}
+        .uav-toc-item.active{background:var(--accent-light);color:var(--accent);font-weight:700;border-right-color:var(--accent);}
+        .uav-toc-item .toc-num{font-size:8px;font-weight:800;color:var(--accent);min-width:16px;}
+        .uav-toc-item .toc-label{font-size:8.5px;line-height:1.3;}
+        .uav-doc-content{flex:1;min-width:0;background:white;}
+
+        .udoc-cover{background:linear-gradient(135deg,#0a1628 0%,#1a3a5c 100%);padding:24px 28px 20px;color:white;position:relative;overflow:hidden;}
+        .udoc-cover::before{content:'';position:absolute;top:-20px;right:-20px;width:100px;height:100px;border-radius:50%;background:rgba(26,92,255,.2);}
+        .udoc-cover::after{content:'';position:absolute;bottom:-30px;left:-30px;width:130px;height:130px;border-radius:50%;background:rgba(139,92,246,.15);}
+        .udoc-logo-row{display:flex;align-items:center;gap:8px;margin-bottom:12px;position:relative;z-index:1;}
+        .udoc-logo-box{width:26px;height:26px;background:linear-gradient(135deg,#1a5cff,#8b5cf6);border-radius:6px;display:flex;align-items:center;justify-content:center;}
+        .udoc-logo-box i{color:white;font-size:12px;}
+        .udoc-logo-txt{font-size:10px;font-weight:700;opacity:.85;}
+        .udoc-cover h2{font-size:14px;font-weight:900;margin-bottom:5px;line-height:1.4;position:relative;z-index:1;}
+        .udoc-cover-sub{font-size:9px;opacity:.65;margin-bottom:10px;position:relative;z-index:1;}
+        .udoc-meta-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;position:relative;z-index:1;}
+        .udoc-meta-item{background:rgba(255,255,255,.1);border-radius:5px;padding:5px 8px;}
+        .udoc-meta-label{font-size:8px;opacity:.65;margin-bottom:2px;}
+        .udoc-meta-val{font-size:9.5px;font-weight:700;}
+        .udoc-meta-val.empty{opacity:.4;font-style:italic;font-weight:400;}
+
+        .udoc-body{padding:12px 16px;max-height:480px;overflow-y:auto;}
+
+        /* sections inside body */
+        .udoc-section{margin-bottom:10px;scroll-margin-top:10px;}
+        .udoc-section-head{background:#f0f2f5;padding:6px 10px;font-size:10px;font-weight:800;color:#0f1923;border-radius:6px;margin-bottom:6px;border-right:3px solid #1a5cff;display:flex;align-items:center;gap:6px;}
+        .udoc-section-num{background:#1a5cff;color:white;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;flex-shrink:0;}
+
+        .udoc-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px;}
+        .udoc-field-grid.three{grid-template-columns:1fr 1fr 1fr;}
+        .udoc-field{background:#f8f9fb;border-radius:5px;padding:6px 8px;border:1px solid #e9ecf0;}
+        .udoc-field-label{font-size:8px;color:#9ca3af;font-weight:600;margin-bottom:2px;}
+        .udoc-field-val{font-size:10px;font-weight:700;color:#0f1923;word-break:break-word;}
+        .udoc-field-val.empty{color:#c5cdd8;font-weight:400;font-style:italic;}
+
+        .udoc-text-block{background:#f8f9fb;border-radius:5px;padding:7px 10px;border:1px solid #e9ecf0;font-size:9.5px;line-height:1.8;color:#3d4f63;margin-bottom:6px;}
+        .udoc-bullet{font-size:9px;color:#3d4f63;padding:2px 0;display:flex;align-items:flex-start;gap:5px;line-height:1.6;}
+        .udoc-bullet::before{content:'•';color:#1a5cff;font-size:11px;flex-shrink:0;margin-top:-1px;}
+        .udoc-bullets-box{background:#f8f9fb;border-radius:5px;padding:7px 10px;border:1px solid #e9ecf0;margin-bottom:6px;}
+
+        .udoc-placeholder{background:#f8f9fb;border-radius:5px;padding:14px 10px;border:1.5px dashed #d1d5db;font-size:9px;color:#9ca3af;text-align:center;margin-bottom:6px;}
+        .udoc-separator{border:none;border-top:1px dashed #e2e6ec;margin:8px 0;}
+        .udoc-footer{background:#f0f2f5;padding:8px 16px;display:flex;justify-content:space-between;font-size:8.5px;color:#9ca3af;border-top:1px solid #e2e6ec;}
+
+        /* NAV BUTTONS */
+        .uav-nav{display:flex;justify-content:space-between;padding:8px 16px 10px;gap:12px;border-top:1px solid #e2e6ec;background:#fafbfc;}
+        .uav-nav-btn{display:flex;align-items:center;gap:6px;padding:6px 16px;background:var(--accent-light);color:var(--accent);border:none;border-radius:8px;font-family:'Cairo',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:.2s;}
+        .uav-nav-btn:hover{background:var(--accent);color:white;}
+        .uav-nav-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+        .uav-nav-btn:disabled:hover{background:var(--accent-light);color:var(--accent);}
+
+        /* BACK BUTTONS */
+        .back-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--light-gray);color:var(--text-mid);border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:.2s;margin-bottom:24px;}
+        .back-btn:hover{background:var(--border);color:var(--text-dark);}
+        .spinner{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:none;}
+        @keyframes spin{to{transform:rotate(360deg);}}
+
+        /* TOAST */
+        .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(80px);background:#0f1923;color:white;padding:14px 24px;border-radius:12px;font-size:14.5px;font-weight:600;z-index:9998;transition:transform .35s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:10px;box-shadow:0 10px 30px rgba(0,0,0,.25);}
+        .toast.show{transform:translateX(-50%) translateY(0);}
+        .toast i{font-size:16px;color:var(--green);}
+
+        /* PDF */
+        #pdf-content{width:794px;background:white;color:#0f1923;padding:0;position:absolute;top:-99999px;right:-99999px;direction:rtl;font-family:'Cairo',sans-serif;}
+        .pdf-cover{background:linear-gradient(135deg,#0f1923,#1a2f4a);padding:60px 50px 50px;color:white;position:relative;overflow:hidden;}
+        .pdf-cover::after{content:'';position:absolute;bottom:-60px;left:-60px;width:220px;height:220px;border-radius:50%;background:rgba(26,92,255,.15);}
+        .pdf-cover::before{content:'';position:absolute;top:-40px;right:-40px;width:180px;height:180px;border-radius:50%;background:rgba(139,92,246,.1);}
+        .pdf-logo-row{display:flex;align-items:center;gap:12px;margin-bottom:40px;}
+        .pdf-logo-box{width:44px;height:44px;background:linear-gradient(135deg,#1a5cff,#8b5cf6);border-radius:11px;display:flex;align-items:center;justify-content:center;}
+        .pdf-logo-box i{color:white;font-size:20px;}
+        .pdf-logo-text{font-size:16px;font-weight:700;opacity:.9;}
+        .pdf-cover h1{font-size:34px;font-weight:900;margin-bottom:12px;line-height:1.3;position:relative;z-index:1;}
+        .pdf-cover-meta{display:flex;gap:24px;flex-wrap:wrap;opacity:.8;font-size:14px;position:relative;z-index:1;}
+        .pdf-cover-meta span{display:flex;align-items:center;gap:7px;}
+        .pdf-body{padding:44px 50px;}
+        .pdf-section{margin-bottom:22px;border-radius:14px;overflow:hidden;border:1.5px solid #e2e6ec;}
+        .pdf-q{background:#f0f2f5;padding:14px 20px;font-size:15px;font-weight:700;color:#0f1923;display:flex;align-items:center;gap:10px;}
+        .pdf-q-dot{width:8px;height:8px;border-radius:50%;background:#1a5cff;flex-shrink:0;}
+        .pdf-a{padding:18px 20px;font-size:14.5px;line-height:1.9;color:#3d4f63;background:white;white-space:pre-line;}
+        .pdf-footer-block{background:#f8f9fb;padding:18px 50px;display:flex;align-items:center;justify-content:space-between;border-top:1.5px solid #e2e6ec;font-size:12.5px;color:#7a8fa6;}
+
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes slideUp{from{opacity:0;transform:translateY(30px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+        @keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    </style>
+</head>
+<body>
+
+<!-- PRIVACY -->
+<div id="privacy-overlay">
+    <div class="privacy-card">
+        <div class="privacy-icon-wrap"><i class="fa-solid fa-shield-halved"></i></div>
+        <h2>سياسة الخصوصية والأمان</h2>
+        <p class="subtitle">قبل البدء، يرجى الاطلاع على سياسة حماية البيانات الخاصة بك</p>
+        <div class="privacy-points">
+            <div class="privacy-point"><div class="dot"><i class="fa-solid fa-check"></i></div><span>جميع بياناتك وتقاريرك <strong>سرية تمامًا</strong> ولا يمكن لأي شخص الاطلاع عليها</span></div>
+            <div class="privacy-point"><div class="dot"><i class="fa-solid fa-lock"></i></div><span>يتم معالجة البيانات محليًا على جهازك دون رفعها لأي خادم خارجي</span></div>
+            <div class="privacy-point"><div class="dot"><i class="fa-solid fa-file-shield"></i></div><span>ملفات PDF المُصدَّرة محفوظة فقط على جهازك ولا يتم مشاركتها</span></div>
+            <div class="privacy-point"><div class="dot"><i class="fa-solid fa-user-shield"></i></div><span>لا يتم تخزين أي بيانات شخصية أو معلومات التقارير من قِبل النظام</span></div>
+        </div>
+        <button class="privacy-btn" onclick="closePrivacy()"><i class="fa-solid fa-circle-check"></i> فهمت، ابدأ النظام</button>
+    </div>
+</div>
+
+<div id="app">
+    <header class="top-header">
+        <div class="header-logo">
+            <div class="logo-icon"><i class="fa-solid fa-leaf"></i></div>
+            <div class="logo-text">نظام التقارير <span>البيئية</span></div>
+        </div>
+        <div class="header-badge">النظام يعمل</div>
+    </header>
+
+    <!-- PAGE 1: HOME -->
+    <div class="page active" id="page-home">
+        <div class="page-title"><h1>لوحة التقارير</h1><p>اختر تصنيف التقرير الذي تريد إنشاءه</p></div>
+        <div class="categories-grid">
+            <div class="category-card blue" onclick="openCategory(0)">
+                <div class="cat-icon"><i class="fa-solid fa-wind"></i></div>
+                <div class="cat-title">التقارير البيئية</div>
+                <div class="cat-desc">رصد وتحليل مستويات تلوث الهواء ومؤشرات الجودة البيئية للغلاف الجوي</div>
+                <div class="cat-footer"><div class="cat-count"><strong>0</strong> تقارير متاحة</div><div class="cat-arrow"><i class="fa-solid fa-chevron-left"></i></div></div>
+            </div>
+            <div class="category-card green" onclick="openCategory(1)">
+                <div class="cat-icon"><i class="fa-solid fa-users"></i></div>
+                <div class="cat-title">التقارير الاجتماعية</div>
+                <div class="cat-desc">تقارير الأثر الاجتماعي والمسؤولية المجتمعية للمشروع</div>
+                <div class="cat-footer"><div class="cat-count"><strong>0</strong> تقارير متاحة</div><div class="cat-arrow"><i class="fa-solid fa-chevron-left"></i></div></div>
+            </div>
+            <div class="category-card gold" onclick="openCategory(2)">
+                <div class="cat-icon"><i class="fa-solid fa-satellite-dish"></i></div>
+                <div class="cat-title">البيانات والمعلومات الفنية</div>
+                <div class="cat-desc">التصوير الجوي والرفع المساحي والبيانات الجيوفضائية والفنية</div>
+                <div class="cat-footer"><div class="cat-count"><strong>1</strong> تقارير متاحة</div><div class="cat-arrow"><i class="fa-solid fa-chevron-left"></i></div></div>
+            </div>
+            <div class="category-card blue" onclick="openCategory(3)">
+                <div class="cat-icon"><i class="fa-solid fa-boxes-stacked"></i></div>
+                <div class="cat-title">الإنتاج وإدارة المخزون</div>
+                <div class="cat-desc">تقارير الإنتاج ومستويات المخزون والتوريد</div>
+                <div class="cat-footer"><div class="cat-count"><strong>0</strong> تقارير متاحة</div><div class="cat-arrow"><i class="fa-solid fa-chevron-left"></i></div></div>
+            </div>
+            <div class="category-card green" onclick="openCategory(4)">
+                <div class="cat-icon"><i class="fa-solid fa-screwdriver-wrench"></i></div>
+                <div class="cat-title">المعدات والصيانة</div>
+                <div class="cat-desc">تقارير حالة المعدات وجدول الصيانة الدورية</div>
+                <div class="cat-footer"><div class="cat-count"><strong>0</strong> تقارير متاحة</div><div class="cat-arrow"><i class="fa-solid fa-chevron-left"></i></div></div>
+            </div>
+            <div class="category-card gold" onclick="openCategory(5)">
+                <div class="cat-icon"><i class="fa-solid fa-flag-checkered"></i></div>
+                <div class="cat-title">الإغلاق وتسليم المشروع</div>
+                <div class="cat-desc">تقارير إنهاء وتسليم المشروع وإجراءات الإغلاق</div>
+                <div class="cat-footer"><div class="cat-count"><strong>0</strong> تقارير متاحة</div><div class="cat-arrow"><i class="fa-solid fa-chevron-left"></i></div></div>
+            </div>
+            <div class="category-card blue" onclick="openCategory(6)">
+                <div class="cat-icon"><i class="fa-solid fa-chart-line"></i></div>
+                <div class="cat-title">التمويل والاستثمار</div>
+                <div class="cat-desc">تقارير التمويل وفرص الاستثمار والجدوى المالية</div>
+                <div class="cat-footer"><div class="cat-count"><strong>0</strong> تقارير متاحة</div><div class="cat-arrow"><i class="fa-solid fa-chevron-left"></i></div></div>
+            </div>
+            <div class="category-card green" onclick="openCategory(7)">
+                <div class="cat-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                <div class="cat-title">المالية المشتريات والعقود</div>
+                <div class="cat-desc">تقارير المشتريات والعقود والشؤون المالية</div>
+                <div class="cat-footer"><div class="cat-count"><strong>0</strong> تقارير متاحة</div><div class="cat-arrow"><i class="fa-solid fa-chevron-left"></i></div></div>
+            </div>
+            <div class="category-card gold" onclick="openCategory(8)">
+                <div class="cat-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <div class="cat-title">إدارة المخاطر</div>
+                <div class="cat-desc">تقارير تقييم المخاطر وخطط الاستجابة والتخفيف</div>
+                <div class="cat-footer"><div class="cat-count"><strong>0</strong> تقارير متاحة</div><div class="cat-arrow"><i class="fa-solid fa-chevron-left"></i></div></div>
+            </div>
+            <div class="category-card blue" onclick="openCategory(9)">
+                <div class="cat-icon"><i class="fa-solid fa-book"></i></div>
+                <div class="cat-title">مكتبة المعرفة التعدينية</div>
+                <div class="cat-desc">مرجع شامل للمعارف والمعايير الفنية في قطاع التعدين</div>
+                <div class="cat-footer"><div class="cat-count"><strong>0</strong> تقارير متاحة</div><div class="cat-arrow"><i class="fa-solid fa-chevron-left"></i></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 2: REPORTS LIST -->
+    <div class="page" id="page-reports">
+        <button class="back-btn" onclick="goHome()"><i class="fa-solid fa-chevron-right"></i> العودة للرئيسية</button>
+        <div class="breadcrumb">
+            <span onclick="goHome()">الرئيسية</span>
+            <i class="fa-solid fa-chevron-left"></i>
+            <span class="active" id="breadcrumb-cat">—</span>
+        </div>
+        <div class="page-title"><h1 id="reports-page-title">—</h1><p id="reports-page-desc">اختر التقرير الذي تريد إنشاءه</p></div>
+        <div class="reports-grid" id="reports-grid"></div>
+    </div>
+
+    <!-- PAGE 3: DYNAMIC FORM -->
+    <div class="page" id="page-form">
+        <button class="back-btn" onclick="goReports()"><i class="fa-solid fa-chevron-right"></i> العودة لقائمة التقارير</button>
+        <div class="breadcrumb">
+            <span onclick="goHome()">الرئيسية</span><i class="fa-solid fa-chevron-left"></i>
+            <span onclick="goReports()" id="bc-cat2">—</span><i class="fa-solid fa-chevron-left"></i>
+            <span class="active" id="bc-report">—</span>
+        </div>
+        <div class="page-title"><h1 id="form-page-title">—</h1><p id="form-page-desc">—</p></div>
+        <div class="form-layout">
+            <div>
+                <div class="form-card">
+                    <div class="form-section-title"><i class="fa-solid fa-circle-info"></i> بيانات التقرير الأساسية</div>
+                    <div class="input-row">
+                        <div class="input-group"><label>عنوان التقرير <span class="req">*</span></label><input type="text" id="f-title" placeholder="اكتب عنوان التقرير" oninput="updateProgress()"></div>
+                        <div class="input-group"><label>التاريخ <span class="req">*</span></label><input type="date" id="f-date" oninput="updateProgress()"></div>
+                    </div>
+                    <div class="input-row">
+                        <div class="input-group"><label>الموقع / المنطقة</label><input type="text" id="f-location" placeholder="مثال: المملكة"></div>
+                        <div class="input-group"><label>اسم المحرر</label><input type="text" id="f-author" placeholder="اسم محرر التقرير"></div>
+                    </div>
+                </div>
+                <div id="dynamic-fields"></div>
+                <div class="form-card" style="margin-top:18px;">
+                    <div class="form-section-title"><i class="fa-solid fa-note-sticky"></i> ملاحظات إضافية</div>
+                    <div class="input-group" style="margin-bottom:0"><label>ملاحظات عامة</label><textarea id="f-notes" placeholder="أي ملاحظات..."></textarea></div>
+                </div>
+            </div>
+            <div>
+                <div class="sidebar-card">
+                    <div class="sidebar-title"><i class="fa-solid fa-chart-line"></i> تقدم الإدخال</div>
+                    <div class="progress-wrap">
+                        <div class="progress-label"><span>اكتمال البيانات</span><span id="progress-pct">0%</span></div>
+                        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+                    </div>
+                </div>
+                <div class="sidebar-card">
+                    <div class="sidebar-title"><i class="fa-solid fa-tag"></i> معلومات التقرير</div>
+                    <div class="meta-item"><i class="fa-solid fa-folder"></i><span class="meta-label">التصنيف</span><span class="meta-val" id="meta-cat">—</span></div>
+                    <div class="meta-item"><i class="fa-solid fa-file-lines"></i><span class="meta-label">نوع التقرير</span><span class="meta-val" id="meta-report">—</span></div>
+                    <div class="meta-item"><i class="fa-solid fa-calendar"></i><span class="meta-label">تاريخ الإنشاء</span><span class="meta-val" id="meta-date">—</span></div>
+                </div>
+                <div class="sidebar-card">
+                    <button class="save-btn" id="save-btn" onclick="downloadPDF()">
+                        <div class="spinner" id="btn-spinner"></div>
+                        <i class="fa-solid fa-file-pdf" id="btn-icon"></i>
+                        <span id="btn-text">تحميل التقرير PDF</span>
+                    </button>
+                    <button class="btn-secondary" onclick="clearForm()"><i class="fa-solid fa-rotate-right"></i> مسح البيانات</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 4: UAV FIXED REPORT -->
+    <div class="page" id="page-uav">
+        <button class="back-btn" onclick="goReports()"><i class="fa-solid fa-chevron-right"></i> العودة لقائمة التقارير</button>
+        <div class="breadcrumb">
+            <span onclick="goHome()">الرئيسية</span><i class="fa-solid fa-chevron-left"></i>
+            <span onclick="goReports()" id="bc-uav-cat">—</span><i class="fa-solid fa-chevron-left"></i>
+            <span class="active">تقرير التصوير والرفع المساحي الجوي (UAV)</span>
+        </div>
+        <div class="page-title">
+            <h1>تقرير التصوير والرفع المساحي الجوي باستخدام الطائرات بدون طيار (UAV)</h1>
+            <p>أدخل البيانات المتغيرة وشاهد التقرير يتحدث فورياً — ثم احفظه كـ PDF</p>
+        </div>
+        <div class="uav-layout">
+            <!-- FIELDS PANEL -->
+            <div class="uav-fields-panel">
+                <div class="form-card">
+                    <div class="form-section-title"><i class="fa-solid fa-pen-to-square"></i> البيانات المتغيرة</div>
+                    <div class="input-group"><label>اسم المشروع <span class="req">*</span></label><input type="text" id="uav-project" placeholder="مثال: مشروع استكشاف مكمن حجاب" oninput="updateUAV()"></div>
+                    <div class="input-row">
+                        <div class="input-group"><label>اسم الشركة / العميل</label><input type="text" id="uav-client" placeholder="اسم الشركة المالكة" oninput="updateUAV()"></div>
+                        <div class="input-group"><label>اسم الشركة المنفذة</label><input type="text" id="uav-executor" placeholder="اسم الشركة المنفذة" oninput="updateUAV()"></div>
+                    </div>
+                    <div class="input-row">
+                        <div class="input-group"><label>الموقع / المحافظة</label><input type="text" id="uav-location" placeholder="مثال: محافظة الدوادمي" oninput="updateUAV()"></div>
+                        <div class="input-group"><label>المساحة الإجمالية</label><input type="text" id="uav-area" placeholder="مثال: 150 كم²" oninput="updateUAV()"></div>
+                    </div>
+                    <div class="input-row">
+                        <div class="input-group"><label>رقم المشروع</label><input type="text" id="uav-projnum" placeholder="مثال: PROJ-2025-001" oninput="updateUAV()"></div>
+                        <div class="input-group"><label>إصدار التقرير</label><input type="text" id="uav-version" placeholder="مثال: Rev 01" oninput="updateUAV()"></div>
+                    </div>
+                    <div class="input-row">
+                        <div class="input-group"><label>تاريخ التنفيذ</label><input type="date" id="uav-date" oninput="updateUAV()"></div>
+                        <div class="input-group"><label>الوضوح (سم/بكسل)</label><input type="text" id="uav-resolution" placeholder="مثال: 3" oninput="updateUAV()"></div>
+                    </div>
+                </div>
+                <div class="sidebar-card" style="margin-top:16px;">
+                    <div class="sidebar-title"><i class="fa-solid fa-circle-info"></i> ملاحظة</div>
+                    <p style="font-size:13px;color:var(--text-light);line-height:1.8;">محتوى التقرير ثابت ومُعدّ مسبقًا. البيانات التي تدخلها تظهر فورياً في المعاينة وتُضمَّن في ملف الـ PDF.</p>
+                </div>
+                <div class="sidebar-card" style="margin-top:14px;">
+                    <button class="save-btn" id="uav-dl-btn" onclick="downloadUAVPDF()">
+                        <div class="spinner" id="uav-spinner"></div>
+                        <i class="fa-solid fa-file-pdf" id="uav-dl-icon"></i>
+                        <span id="uav-dl-text">تحميل التقرير PDF</span>
+                    </button>
+                    <button class="btn-secondary" onclick="clearUAV()"><i class="fa-solid fa-rotate-right"></i> مسح البيانات</button>
+                </div>
+            </div>
+
+            <!-- PREVIEW PANEL -->
+            <div class="uav-preview-panel">
+                <div class="uav-preview-header">
+                    <i class="fa-solid fa-eye"></i> معاينة مباشرة
+                    <span class="live-badge">LIVE</span>
+                </div>
+                <div class="uav-preview-scroll">
+                    <div id="uav-doc" class="uav-doc-wrapper"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- end app -->
+
+<div class="toast" id="toast"><i class="fa-solid fa-check-circle"></i><span id="toast-msg"></span></div>
+<div id="pdf-content"></div>
+
+<script>
+// ============================================================
+// DATA
+// ============================================================
+const CATEGORIES = [
+    {
+        id:0, name:'التقارير البيئية', desc:'رصد وتحليل مستويات تلوث الهواء',
+        reports:[]
+    },
+    {
+        id:1, name:'التقارير الاجتماعية', desc:'تقارير الأثر الاجتماعي والمسؤولية المجتمعية للمشروع',
+        reports:[]
+    },
+    {
+        id:2, name:'البيانات والمعلومات الفنية', desc:'التصوير الجوي والرفع المساحي والبيانات الجيوفضائية والفنية',
+        reports:[
+            { id:'air-4', title:'تقرير التصوير والرفع المساحي الجوي (UAV)', desc:'تقرير شامل ثابت المحتوى لمشاريع الطائرات بدون طيار — بيانات المشروع قابلة للتخصيص', tags:['UAV','طائرات بدون طيار','مساحة جوية'], isUAV:true }
+        ]
+    },
+    {
+        id:3, name:'الإنتاج وإدارة المخزون', desc:'تقارير الإنتاج ومستويات المخزون والتوريد',
+        reports:[]
+    },
+    {
+        id:4, name:'المعدات والصيانة', desc:'تقارير حالة المعدات وجدول الصيانة الدورية',
+        reports:[]
+    },
+    {
+        id:5, name:'الإغلاق وتسليم المشروع', desc:'تقارير إنهاء وتسليم المشروع وإجراءات الإغلاق',
+        reports:[]
+    },
+    {
+        id:6, name:'التمويل والاستثمار', desc:'تقارير التمويل وفرص الاستثمار والجدوى المالية',
+        reports:[]
+    },
+    {
+        id:7, name:'المالية المشتريات والعقود', desc:'تقارير المشتريات والعقود والشؤون المالية',
+        reports:[]
+    },
+    {
+        id:8, name:'إدارة المخاطر', desc:'تقارير تقييم المخاطر وخطط الاستجابة والتخفيف',
+        reports:[]
+    },
+    {
+        id:9, name:'مكتبة المعرفة التعدينية', desc:'مرجع شامل للمعارف والمعايير الفنية في قطاع التعدين',
+        reports:[]
+    }
+];
+
+let currentCatId = null;
+let currentReport = null;
+let currentCatName = '';
+
+// ============================================================
+// PRIVACY
+// ============================================================
+function closePrivacy(){
+    document.getElementById('privacy-overlay').classList.add('hidden');
+    setTimeout(()=>{
+        document.getElementById('privacy-overlay').style.display='none';
+        document.getElementById('app').classList.add('visible');
+    },400);
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showPage(id){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    window.scrollTo({top:0,behavior:'smooth'});
+}
+function goHome(){showPage('page-home');}
+function goReports(){if(currentCatId!==null)openCategory(currentCatId);else openCategory(0);}
+
+function openCategory(catId){
+    currentCatId=catId;
+    const cat=CATEGORIES[catId];
+    currentCatName=cat.name;
+    document.getElementById('breadcrumb-cat').textContent=cat.name;
+    document.getElementById('reports-page-title').textContent=cat.name;
+    document.getElementById('reports-page-desc').textContent=cat.desc;
+    const grid=document.getElementById('reports-grid');
+    grid.innerHTML='';
+
+    if(!cat.reports.length){
+        grid.innerHTML=`
+        <div style="grid-column:1/-1;text-align:center;padding:70px 20px;background:white;border-radius:18px;border:1.5px dashed var(--border);">
+            <i class="fa-solid fa-folder-open" style="font-size:42px;color:var(--border);margin-bottom:18px;display:block;"></i>
+            <h3 style="font-size:18px;font-weight:700;color:var(--text-mid);margin-bottom:8px;">لا توجد تقارير بعد في هذا التصنيف</h3>
+            <p style="font-size:14px;color:var(--text-light);">سيتم إضافة التقارير المتاحة لهذا القسم قريبًا</p>
+        </div>`;
+        showPage('page-reports');
+        return;
+    }
+
+    cat.reports.forEach((r,i)=>{
+        const isSpecial=r.isUAV;
+        grid.innerHTML+=`
+        <div class="report-card" onclick="openReport(${catId},${i})">
+            <div class="report-card-top">
+                <div class="report-num${isSpecial?' special':''}">${i+1}</div>
+                <div class="report-info"><h3>${r.title}</h3><p>${r.desc}</p></div>
+            </div>
+            <div class="report-tags">${r.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+            <button class="report-open-btn"><i class="fa-solid fa-pen-to-square"></i> فتح وإنشاء التقرير</button>
+        </div>`;
+    });
+    showPage('page-reports');
+}
+
+function openReport(catId,reportIdx){
+    const cat=CATEGORIES[catId];
+    const report=cat.reports[reportIdx];
+    currentCatId=catId;
+    currentCatName=cat.name;
+
+    if(report.isUAV){
+        document.getElementById('bc-uav-cat').textContent=cat.name;
+        document.getElementById('uav-date').value=new Date().toISOString().split('T')[0];
+        updateUAV();
+        showPage('page-uav');
+        return;
+    }
+
+    currentReport=report;
+    document.getElementById('bc-cat2').textContent=cat.name;
+    document.getElementById('bc-report').textContent=report.title;
+    document.getElementById('form-page-title').textContent=report.title;
+    document.getElementById('form-page-desc').textContent=report.desc;
+    document.getElementById('meta-cat').textContent=cat.name;
+    document.getElementById('meta-report').textContent=report.title;
+    document.getElementById('meta-date').textContent=new Date().toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'});
+    document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
+
+    const container=document.getElementById('dynamic-fields');
+    container.innerHTML='';
+    if(report.fields&&report.fields.length){
+        let html=`<div class="form-card" style="margin-top:18px;"><div class="form-section-title"><i class="fa-solid fa-list-check"></i> حقول التقرير التفصيلية</div>`;
+        report.fields.forEach(f=>{
+            html+=`<div class="input-group"><label>${f.label}</label>${f.type==='textarea'?`<textarea id="ff-${f.id}" placeholder="أدخل ${f.label}..." oninput="updateProgress()"></textarea>`:`<input type="text" id="ff-${f.id}" placeholder="أدخل ${f.label}..." oninput="updateProgress()">`}</div>`;
+        });
+        html+=`</div>`;
+        container.innerHTML=html;
+    }
+    clearForm(false);
+    updateProgress();
+    showPage('page-form');
+}
+
+// ============================================================
+// PROGRESS / CLEAR (dynamic form)
+// ============================================================
+function updateProgress(){
+    const inputs=document.querySelectorAll('#page-form input[type="text"],#page-form input[type="date"],#page-form textarea');
+    let filled=0;
+    inputs.forEach(i=>{if(i.value.trim())filled++;});
+    const pct=Math.round((filled/inputs.length)*100)||0;
+    document.getElementById('progress-fill').style.width=pct+'%';
+    document.getElementById('progress-pct').textContent=pct+'%';
+}
+function clearForm(showMsg=true){
+    ['f-title','f-date','f-location','f-author','f-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    if(currentReport&&currentReport.fields)currentReport.fields.forEach(f=>{const el=document.getElementById('ff-'+f.id);if(el)el.value='';});
+    document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
+    updateProgress();
+    if(showMsg)showToast('تم مسح جميع البيانات','fa-rotate-right');
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg,icon='fa-check-circle'){
+    const t=document.getElementById('toast');
+    t.querySelector('i').className='fa-solid '+icon;
+    document.getElementById('toast-msg').textContent=msg;
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+// ============================================================
+// UAV LIVE PREVIEW with TOC + NAV
+// ============================================================
+let uavSections = [];
+let currentSectionIndex = 0;
+
+function v(id){return document.getElementById(id)?.value?.trim()||'';}
+function disp(val,fallback='غير محدد'){return val||`<span style="color:#c5cdd8;font-style:italic;font-weight:400;">${fallback}</span>`;}
+
+function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateRaw, res, dateStr){
+    function fv(val){ return val ? `<span style="font-weight:700;color:#0f1923;">${esc(val)}</span>` : `<span style="color:#c5cdd8;font-style:italic;font-weight:400;">غير محدد</span>`; }
+
+    const sections = [
+        {
+            num: '1', label: 'الملخص التنفيذي',
+            content: `
+            <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">1.1 نظرة عامة على المشروع</div>
+            <div class="udoc-text-block">
+                يهدف مشروع ${fv(proj)} بمحافظة ${fv(loc)} إلى دعم أعمال الاستكشاف المعدني لشركة ${fv(client)} من خلال تنفيذ برنامج متكامل يشمل التصوير والرفع المساحي الجوي والمسح المغناطيسي باستخدام الطائرات بدون طيار على مساحة إجمالية تبلغ ${fv(area)}. يركّز المشروع على جمع بيانات جيوفضائية وجيوفيزيائية عالية الدقة لإنتاج خرائط ونماذج رقمية وبيانات تساعد في تحديد المناطق المستهدفة داخل نطاق الترخيص، بما يعزز الجدوى الفنية لمراحل الاستكشاف اللاحقة. وقد تم تنفيذ الأعمال وفق تصريح رسمي من الهيئة العامة للمساحة والمعلومات الجيومكانية، ويسهم هذا المشروع في دعم أهداف المملكة العربية السعودية الاستراتيجية ضمن رؤية 2030.
+            </div>
+            <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">1.2 نطاق العمل</div>
+            <div class="udoc-text-block">
+                يشمل نطاق العمل في مشروع ${fv(loc)} تنفيذ برنامج استكشافي متكامل يعتمد على استخدام الطائرات بدون طيار لجمع بيانات جيوفضائية وجيوفيزيائية عالية الدقة داخل مساحة المشروع البالغة ${fv(area)}.
+            </div>
+            <div class="udoc-bullets-box">
+                <div class="udoc-bullet">إعداد خطط الطيران وفق متطلبات الدقة وكثافة نقاط البيانات.</div>
+                <div class="udoc-bullet">تنفيذ رحلات جوية تغطي كامل نطاق المشروع باستخدام طائرات احترافية وكاميرات عالية الدقة.</div>
+                <div class="udoc-bullet">جمع صور جوية RGB لإنتاج Orthophoto وDEM وDSM ونقاط السحابة والطبقات الجيومكانية.</div>
+                <div class="udoc-bullet">استخدام نقاط ضبط أرضية GCPs وأنظمة التصحيح RTK/PPK/NRTK لضمان الدقة السنتيمترية.</div>
+                <div class="udoc-bullet">معالجة البيانات ضمن بيئة آمنة متوافقة مع متطلبات هيئة المساحة والمعلومات الجيومكانية.</div>
+            </div>
+            <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">1.3 أبرز النتائج</div>
+            <div class="udoc-bullets-box">
+                <div class="udoc-bullet">تغطية جوية كاملة للموقع البالغ ${fv(area)} بدقة عالية، نتج عنها إنتاج خرائط Orthophoto بدقة تصل إلى أقل من ${fv(res)} سم/بكسل.</div>
+                <div class="udoc-bullet">إنتاج نماذج رقمية دقيقة مكّنت من فهم التضاريس التفصيلية للموقع وأشكال السطح ذات الأهمية الجيولوجية.</div>
+                <div class="udoc-bullet">معالجة البيانات في بيئة مؤمّنة ومطابقة للمعايير الوطنية.</div>
+                <div class="udoc-bullet">تحقيق مستوى عالٍ من الدقة السنتيمترية بفضل نقاط الضبط الأرضية GCPs وأنظمة التصحيح RTK/PPK/NRTK.</div>
+                <div class="udoc-bullet">إنتاج مجموعة كاملة من طبقات GIS/CAD تمثل أساسًا لبناء نموذج جيومكاني شامل.</div>
+            </div>
+            <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">1.4 القيمة المضافة</div>
+            <div class="udoc-bullets-box">
+                <div class="udoc-bullet">تقليل المخاطر الجيولوجية والاستكشافية من خلال دمج بيانات التصوير الجوي مع نتائج المسح الأخرى.</div>
+                <div class="udoc-bullet">بناء قاعدة بيانات مكانية وجيوفيزيائية موحدة وقابلة للتطوير.</div>
+                <div class="udoc-bullet">تحسين جودة البيانات مقارنة بالطرق التقليدية باستخدام الطائرات بدون طيار.</div>
+                <div class="udoc-bullet">تسريع دورة العمل الاستكشافي وتغطية ${fv(area)} في فترة زمنية قصيرة.</div>
+                <div class="udoc-bullet">تعزيز الامتثال التنظيمي والأمان السيبراني وفق متطلبات هيئة المساحة.</div>
+                <div class="udoc-bullet">دعم مستهدفات رؤية المملكة 2030 في قطاع التعدين وتنويع مصادر الدخل.</div>
+            </div>
+            <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">1.5 التوصيات الرئيسية</div>
+            <div class="udoc-bullets-box">
+                <div class="udoc-bullet">الاستفادة من بيانات الرفع الجوي متعدّد الأغراض باستخدام نماذج الارتفاعات الرقمية والطبقات الجيومكانية لدعم تخطيط الحركة الميدانية ووضع مسارات الحفر وخطوط الوصول.</div>
+                <div class="udoc-bullet">دمج نتائج المسح مع قواعد البيانات الجيولوجية السابقة لتحديد الأولويات الاستكشافية.</div>
+                <div class="udoc-bullet">الانتقال إلى مرحلة الحفر الاستكشافي بناءً على التحليل المتكامل للبيانات الجيوفضائية.</div>
+            </div>
+            `
+        },
+        {
+            num: '2', label: 'نبذة عن المشروع',
+            content: `
+            <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">2.1 خلفية المشروع</div>
+            <div class="udoc-text-block">
+                تُعَد ${fv(loc)} من المناطق ذات الأهمية الجيولوجية وتتميز بانتشار تكوينات صخرية قديمة مرتبطة بعمليات التمعدن، مما يجعلها من المواقع المستهدفة في مبادرات الاستكشاف الوطني. وقد فازت شركة ${fv(client)} بترخيص الاستكشاف للموقع، مما مكّنها من البدء في برنامج استكشافي متكامل لتقييم الإمكانات المعدنية وتحديد نطاقات التمعدن ذات الأولوية داخل حدود المشروع البالغة ${fv(area)}.
+            </div>
+            <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">2.2 رؤية المملكة 2030 ودور قطاع التعدين</div>
+            <div class="udoc-text-block">
+                يشكّل قطاع التعدين أحد الركائز الرئيسة في رؤية المملكة العربية السعودية 2030، حيث تستهدف المملكة تحويله إلى ثالث أكبر قطاع صناعي بعد النفط والغاز. ويمثل مشروع ${fv(proj)} خطوة عملية ضمن جهود المملكة لتعظيم القيمة المضافة من ثرواتها المعدنية، ودعم النمو الاقتصادي المستدام.
+            </div>
+            <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">2.3 الجهات المشاركة</div>
+            <div class="udoc-field-grid">
+                <div class="udoc-field"><div class="udoc-field-label">الجهة المالكة / العميل</div><div class="udoc-field-val ${!client?'empty':''}">${client||'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">الشركة المنفذة</div><div class="udoc-field-val ${!exec?'empty':''}">${exec||'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">الجهة المشرفة</div><div class="udoc-field-val">وزارة الصناعة والثروة المعدنية</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">الجهة التنظيمية</div><div class="udoc-field-val">هيئة المساحة والمعلومات الجيومكانية</div></div>
+            </div>
+            <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">2.4 أهداف المشروع</div>
+            <div class="udoc-bullets-box">
+                <div class="udoc-bullet">جمع بيانات جيومكانية دقيقة عالية الدقة تغطي ${fv(area)}.</div>
+                <div class="udoc-bullet">إنتاج خرائط Orthophoto بدقة تصل إلى أقل من ${fv(res)} سم/بكسل كمرجع هندسي موثوق.</div>
+                <div class="udoc-bullet">إنتاج نماذج رقمية دقيقة لفهم التضاريس التفصيلية للموقع وأشكال السطح.</div>
+                <div class="udoc-bullet">معالجة البيانات في بيئة مؤمّنة مطابقة للمعايير الوطنية وضوابط الأمن السيبراني.</div>
+                <div class="udoc-bullet">تحقيق دقة سنتيمترية في نتائج الرفع المساحي بفضل GCPs وأنظمة RTK/PPK/NRTK.</div>
+                <div class="udoc-bullet">إنتاج مجموعة كاملة من طبقات GIS/CAD لبناء نموذج جيومكاني شامل.</div>
+                <div class="udoc-bullet">بناء قاعدة بيانات متكاملة لدعم مراحل الاستكشاف اللاحقة.</div>
+            </div>
+            `
+        },
+        {
+            num: '3', label: 'معلومات الموقع',
+            content: `
+            <div class="udoc-field-grid three">
+                <div class="udoc-field"><div class="udoc-field-label">الموقع الجغرافي</div><div class="udoc-field-val ${!loc?'empty':''}">${loc||'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">المساحة الإجمالية</div><div class="udoc-field-val ${!area?'empty':''}">${area||'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">المشروع</div><div class="udoc-field-val ${!proj?'empty':''}">${proj||'غير محدد'}</div></div>
+            </div>
+            <div class="udoc-section-head" style="background:transparent;border:none;font-size:9px;padding:3px 2px;margin-bottom:3px;">الحدود الإدارية / طبيعة التضاريس / سهولة الوصول / الاستخدامات الحالية / الظروف البيئية</div>
+            <div class="udoc-placeholder"><i class="fa-solid fa-map-location-dot" style="font-size:18px;color:#d1d5db;margin-bottom:6px;display:block;"></i>يُدخل الفريق الميداني وصف تفصيلي للموقع هنا</div>
+            <div class="udoc-section-head" style="background:transparent;border:none;font-size:9px;padding:3px 2px;margin-bottom:3px;">خرائط الموقع — Site Maps</div>
+            <div class="udoc-field-grid">
+                <div class="udoc-placeholder" style="margin-bottom:0;"><i class="fa-solid fa-map" style="font-size:16px;color:#d1d5db;margin-bottom:4px;display:block;"></i>خريطة الموقع العام<br><span style="font-size:8px;">General Location Map — يُستورد من GIS</span></div>
+                <div class="udoc-placeholder" style="margin-bottom:0;"><i class="fa-solid fa-draw-polygon" style="font-size:16px;color:#d1d5db;margin-bottom:4px;display:block;"></i>خريطة حدود الترخيص<br><span style="font-size:8px;">License Boundaries Map — يُستورد من GIS</span></div>
+            </div>
+            `
+        },
+        {
+            num: '4', label: 'نطاق الأعمال',
+            content: `
+            <div class="udoc-bullets-box">
+                <div class="udoc-bullet">التصوير والرفع المساحي الجوي (Aerial Photogrammetry Survey): تغطية كاملة لـ ${fv(area)} بكاميرات RGB عالية الدقة.</div>
+                <div class="udoc-bullet">إنتاج Orthophoto بدقة ${fv(res)} سم/بكسل، DEM، DSM، Contours، Point Cloud، GIS Layers، CAD Files.</div>
+                <div class="udoc-bullet">استخدام نقاط ضبط GCPs وأنظمة RTK/PPK/NRTK لضمان الدقة السنتيمترية.</div>
+                <div class="udoc-bullet">معالجة وتحليل البيانات (Data Processing & Analysis) في بيئة آمنة متوافقة مع متطلبات الهيئة.</div>
+                <div class="udoc-bullet">تطبيق ضوابط الجودة ومعايير أمن البيانات وحماية المعلومات الجيومكانية.</div>
+                <div class="udoc-bullet">إعداد التقارير والمخرجات النهائية: تقرير شامل وخرائط عالية الدقة بمقاييس متعددة ونماذج رقمية.</div>
+            </div>
+            `
+        },
+        {
+            num: '5-7', label: 'المنهجية والمعدات',
+            content: `
+            <div class="udoc-bullets-box">
+                <div class="udoc-bullet">استخدام طائرات بدون طيار متعددة المستشعرات مزودة بكاميرات RGB وLiDAR وحساسات حرارية.</div>
+                <div class="udoc-bullet">تخطيط مسارات الطيران (Flight Plans) باستخدام برامج متخصصة لضمان تغطية 80% Overlap.</div>
+                <div class="udoc-bullet">تنفيذ رحلات جوية منظمة وفق الأنظمة التنظيمية للطيران المدني.</div>
+                <div class="udoc-bullet">استخدام أنظمة GNSS عالية الدقة لتسجيل موضع الطائرة RTK/PPK.</div>
+                <div class="udoc-bullet">معالجة الصور بواسطة برامج Photogrammetry متقدمة لإنتاج النماذج الرقمية.</div>
+            </div>
+            `
+        },
+        {
+            num: '8-9', label: 'نقاط الضبط ونظام الإحداثيات',
+            content: `
+            <div class="udoc-text-block">
+                تم توزيع نقاط ضبط أرضية (GCPs) بشكل منتظم ضمن منطقة المشروع لضمان الدقة الهندسية. تم رصد جميع النقاط باستخدام أجهزة GNSS RTK ذات الدقة السنتيمترية. نظام الإحداثيات المستخدم: WGS84 / UTM Zone 37N.
+            </div>
+            `
+        },
+        {
+            num: '10', label: 'معالجة البيانات وضمان الجودة',
+            content: `
+            <div class="udoc-bullets-box">
+                <div class="udoc-bullet">معالجة الصور الجوية وإنتاج نموذج Point Cloud كثيف.</div>
+                <div class="udoc-bullet">إنتاج Orthophoto متجانسة بدقة ${fv(res)} سم/بكسل.</div>
+                <div class="udoc-bullet">إنتاج DEM/DSM بدقة عالية لتمثيل السطح.</div>
+                <div class="udoc-bullet">تطبيق معايير ضمان الجودة RMSE على نقاط التحقق (Check Points).</div>
+                <div class="udoc-bullet">مراجعة ومطابقة البيانات مع الاشتراطات الوطنية لهيئة المساحة.</div>
+            </div>
+            `
+        },
+        {
+            num: '11-12', label: 'النتائج والمنتجات الرقمية',
+            content: `
+            <div class="udoc-field-grid three">
+                <div class="udoc-field"><div class="udoc-field-label">المنتج</div><div class="udoc-field-val">Orthophoto</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">الدقة</div><div class="udoc-field-val ${!res?'empty':''}">${res?res+' سم/بكسل':'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">التغطية</div><div class="udoc-field-val ${!area?'empty':''}">${area||'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">المنتج</div><div class="udoc-field-val">DEM / DSM</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">التنسيق</div><div class="udoc-field-val">GeoTIFF / LAS</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">نظام الإسناد</div><div class="udoc-field-val">WGS84 UTM</div></div>
+            </div>
+            <div class="udoc-bullets-box">
+                <div class="udoc-bullet">خرائط Orthophoto عالية الدقة لكامل منطقة المشروع.</div>
+                <div class="udoc-bullet">نموذج ارتفاع رقمي (DEM) ونموذج سطح رقمي (DSM).</div>
+                <div class="udoc-bullet">سحابة نقاط (Point Cloud) بصيغة LAS/LAZ.</div>
+                <div class="udoc-bullet">طبقات GIS جاهزة للتحليل والتكامل مع الأنظمة الأخرى.</div>
+                <div class="udoc-bullet">ملفات CAD للاستخدام الهندسي والتصميمي.</div>
+            </div>
+            `
+        },
+        {
+            num: '13-14', label: 'التحليل والقيود',
+            content: `
+            <div class="udoc-text-block">
+                أسفرت عمليات التحليل الفني للبيانات الجوية عن تحديد التضاريس التفصيلية وأنماط الصرف وعناصر السطح الجيولوجية ذات الأهمية الاستكشافية. تُعدّ التضاريس الوعرة والظروف المناخية المتغيرة من أبرز القيود التشغيلية التي تم أخذها بعين الاعتبار خلال تنفيذ الأعمال الميدانية.
+            </div>
+            `
+        },
+        {
+            num: '15-16', label: 'الاستنتاجات والتوصيات',
+            content: `
+            <div class="udoc-text-block">
+                نجح مشروع ${fv(proj)} في تحقيق أهدافه الفنية المتمثلة في جمع بيانات جيوفضائية وجيوفيزيائية عالية الدقة لمنطقة ${fv(loc)}. المخرجات الناتجة تُشكّل قاعدة صلبة لمراحل الاستكشاف التفصيلي والحفر التعديني.
+            </div>
+            <div class="udoc-bullets-box">
+                <div class="udoc-bullet">الاستفادة من النماذج الرقمية والطبقات الجيومكانية في تخطيط الحركة الميدانية.</div>
+                <div class="udoc-bullet">دمج نتائج المسح مع قواعد البيانات الجيولوجية لتحديد أولويات الحفر الاستكشافي.</div>
+                <div class="udoc-bullet">الانتقال لمرحلة التحليل الجيوكيميائي والجيوفيزيائي التكميلي.</div>
+            </div>
+            `
+        },
+        {
+            num: '17', label: 'قائمة المخرجات',
+            content: `
+            <div class="udoc-field-grid">
+                <div class="udoc-field"><div class="udoc-field-label">المخرج</div><div class="udoc-field-val">التقرير الفني الشامل (PDF)</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">المخرج</div><div class="udoc-field-val">خرائط Orthophoto (GeoTIFF)</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">المخرج</div><div class="udoc-field-val">نماذج DEM/DSM (GeoTIFF/LAS)</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">المخرج</div><div class="udoc-field-val">طبقات GIS (SHP/KMZ/GDB)</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">المخرج</div><div class="udoc-field-val">ملفات CAD (DWG/DXF)</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">المخرج</div><div class="udoc-field-val">سحابة النقاط (LAS/LAZ)</div></div>
+            </div>
+            `
+        },
+        {
+            num: '18', label: 'الملاحق',
+            content: `
+            <div class="udoc-placeholder"><i class="fa-solid fa-paperclip" style="font-size:16px;color:#d1d5db;margin-bottom:4px;display:block;"></i>تُضاف الملاحق الفنية والتقنية والخرائط التفصيلية هنا عند الحاجة</div>
+            `
+        }
+    ];
+    return sections;
+}
+
+function updateUAV(){
+    const proj    = v('uav-project');
+    const client  = v('uav-client');
+    const exec    = v('uav-executor');
+    const loc     = v('uav-location');
+    const area    = v('uav-area');
+    const projnum = v('uav-projnum');
+    const version = v('uav-version');
+    const dateRaw = v('uav-date');
+    const res     = v('uav-resolution');
+
+    let dateStr = 'غير محدد';
+    if(dateRaw){ try{ dateStr=new Date(dateRaw).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); }catch(e){} }
+
+    uavSections = buildUAVSections(proj, client, exec, loc, area, projnum, version, dateRaw, res, dateStr);
+    currentSectionIndex = 0;
+    renderUAVSection(proj, client, loc, area, projnum, version, dateStr, dateRaw);
+}
+
+function renderUAVSection(proj, client, loc, area, projnum, version, dateStr, dateRaw){
+    const container = document.getElementById('uav-doc');
+    const section = uavSections[currentSectionIndex] || uavSections[0];
+
+    // Build TOC
+    let tocHtml = `<div class="uav-doc-toc">
+        <div class="uav-doc-toc-title"><i class="fa-solid fa-list"></i> الفهرس</div>`;
+    uavSections.forEach((s, idx) => {
+        const active = idx === currentSectionIndex ? 'active' : '';
+        tocHtml += `<div class="uav-toc-item ${active}" onclick="goToUAVSection(${idx})">
+            <span class="toc-num">${s.num}</span>
+            <span class="toc-label">${s.label}</span>
+        </div>`;
+    });
+    tocHtml += `</div>`;
+
+    // Build content
+    let contentHtml = `<div class="uav-doc-content">`;
+
+    // Cover
+    contentHtml += `
+    <div class="udoc-cover">
+        <div class="udoc-logo-row">
+            <div class="udoc-logo-box"><i class="fa-solid fa-satellite-dish"></i></div>
+            <div class="udoc-logo-txt">نظام التقارير البيئية</div>
+        </div>
+        <h2>تقرير التصوير والرفع المساحي الجوي<br>باستخدام الطائرات بدون طيار (UAV)</h2>
+        <div class="udoc-cover-sub">Aerial Photogrammetry & UAV Survey Report</div>
+        <div class="udoc-meta-grid">
+            <div class="udoc-meta-item"><div class="udoc-meta-label">اسم المشروع</div><div class="udoc-meta-val ${!proj?'empty':''}">${proj||'غير محدد'}</div></div>
+            <div class="udoc-meta-item"><div class="udoc-meta-label">رقم المشروع</div><div class="udoc-meta-val ${!projnum?'empty':''}">${projnum||'غير محدد'}</div></div>
+            <div class="udoc-meta-item"><div class="udoc-meta-label">تاريخ التنفيذ</div><div class="udoc-meta-val ${!dateRaw?'empty':''}">${dateStr}</div></div>
+            <div class="udoc-meta-item"><div class="udoc-meta-label">العميل</div><div class="udoc-meta-val ${!client?'empty':''}">${client||'غير محدد'}</div></div>
+            <div class="udoc-meta-item"><div class="udoc-meta-label">الموقع</div><div class="udoc-meta-val ${!loc?'empty':''}">${loc||'غير محدد'}</div></div>
+            <div class="udoc-meta-item"><div class="udoc-meta-label">إصدار التقرير</div><div class="udoc-meta-val ${!version?'empty':''}">${version||'غير محدد'}</div></div>
+        </div>
+    </div>`;
+
+    // Body with current section
+    contentHtml += `
+    <div class="udoc-body">
+        <div class="udoc-section" id="uav-current-section">
+            <div class="udoc-section-head"><div class="udoc-section-num">${section.num}</div> ${section.label}</div>
+            ${section.content}
+        </div>
+    </div>`;
+
+    // Footer
+    contentHtml += `
+    <div class="udoc-footer">
+        <span>تقرير التصوير والرفع المساحي الجوي (UAV) — ${proj||'غير محدد'}</span>
+        <span>${dateStr} | ${version||'Rev 01'}</span>
+    </div>`;
+
+    // Navigation buttons
+    contentHtml += `
+    <div class="uav-nav">
+        <button class="uav-nav-btn" id="uav-prev-btn" onclick="goToUAVSection(${currentSectionIndex-1})" ${currentSectionIndex===0?'disabled':''}>
+            <i class="fa-solid fa-chevron-right"></i> السابق
+        </button>
+        <span style="font-size:10px;color:var(--text-light);">${currentSectionIndex+1} / ${uavSections.length}</span>
+        <button class="uav-nav-btn" id="uav-next-btn" onclick="goToUAVSection(${currentSectionIndex+1})" ${currentSectionIndex===uavSections.length-1?'disabled':''}>
+            التالي <i class="fa-solid fa-chevron-left"></i>
+        </button>
+    </div>`;
+
+    contentHtml += `</div>`;
+
+    container.innerHTML = tocHtml + contentHtml;
+}
+
+function goToUAVSection(idx){
+    if(idx < 0 || idx >= uavSections.length) return;
+    currentSectionIndex = idx;
+    const proj = v('uav-project');
+    const client = v('uav-client');
+    const loc = v('uav-location');
+    const area = v('uav-area');
+    const projnum = v('uav-projnum');
+    const version = v('uav-version');
+    const dateRaw = v('uav-date');
+    let dateStr = 'غير محدد';
+    if(dateRaw){ try{ dateStr=new Date(dateRaw).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); }catch(e){} }
+    renderUAVSection(proj, client, loc, area, projnum, version, dateStr, dateRaw);
+    // scroll the preview to top
+    document.querySelector('.uav-preview-scroll')?.scrollTo({top:0,behavior:'smooth'});
+}
+
+function esc(s){return s?s.replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])):''}
+
+function clearUAV(){
+    ['uav-project','uav-client','uav-executor','uav-location','uav-area','uav-projnum','uav-version','uav-date','uav-resolution'].forEach(id=>{
+        const el=document.getElementById(id); if(el)el.value='';
+    });
+    document.getElementById('uav-date').value=new Date().toISOString().split('T')[0];
+    updateUAV();
+    showToast('تم مسح البيانات','fa-rotate-right');
+}
+
+// ============================================================
+// UAV PDF DOWNLOAD
+// ============================================================
+async function downloadUAVPDF(){
+    const proj=v('uav-project');
+    if(!proj){showToast('يرجى كتابة اسم المشروع أولاً','fa-triangle-exclamation');return;}
+
+    const btn=document.getElementById('uav-dl-btn');
+    btn.disabled=true;
+    document.getElementById('uav-spinner').style.display='block';
+    document.getElementById('uav-dl-icon').style.display='none';
+    document.getElementById('uav-dl-text').textContent='جاري التحضير...';
+
+    try{
+        // get the current rendered document
+        const docWrapper = document.getElementById('uav-doc');
+        const clone = docWrapper.cloneNode(true);
+        // remove the TOC and nav from clone for PDF
+        clone.querySelector('.uav-doc-toc')?.remove();
+        const nav = clone.querySelector('.uav-nav');
+        if(nav) nav.remove();
+        // ensure all sections are visible
+        const allSections = clone.querySelectorAll('.udoc-section');
+        // get all sections content
+        let allContent = '';
+        // rebuild full content
+        const cover = clone.querySelector('.udoc-cover');
+        const footer = clone.querySelector('.udoc-footer');
+        const body = clone.querySelector('.udoc-body');
+        
+        // Build full body with all sections
+        const fullBody = document.createElement('div');
+        fullBody.className = 'udoc-body';
+        uavSections.forEach((s, idx) => {
+            const div = document.createElement('div');
+            div.className = 'udoc-section';
+            div.innerHTML = `
+                <div class="udoc-section-head"><div class="udoc-section-num">${s.num}</div> ${s.label}</div>
+                ${s.content}
+            `;
+            fullBody.appendChild(div);
+        });
+
+        // Create full document
+        const fullDoc = document.createElement('div');
+        fullDoc.style.cssText = `direction:rtl;font-family:'Cairo',sans-serif;background:white;width:100%;`;
+        fullDoc.appendChild(cover.cloneNode(true));
+        fullDoc.appendChild(fullBody);
+        fullDoc.appendChild(footer.cloneNode(true));
+
+        // Scale up fonts for PDF
+        fullDoc.querySelectorAll('.udoc-cover h2').forEach(el=>el.style.fontSize='20px');
+        fullDoc.querySelectorAll('.udoc-section-head').forEach(el=>el.style.fontSize='13px');
+        fullDoc.querySelectorAll('.udoc-text-block,.udoc-bullet').forEach(el=>el.style.fontSize='12px');
+        fullDoc.querySelectorAll('.udoc-field-label').forEach(el=>el.style.fontSize='10px');
+        fullDoc.querySelectorAll('.udoc-field-val').forEach(el=>el.style.fontSize='13px');
+        fullDoc.querySelectorAll('.udoc-meta-val').forEach(el=>el.style.fontSize='12px');
+
+        const wrap = document.createElement('div');
+        wrap.style.cssText = `position:absolute;top:-99999px;right:-99999px;width:794px;background:white;`;
+        wrap.appendChild(fullDoc);
+        document.body.appendChild(wrap);
+        await new Promise(r=>setTimeout(r,300));
+
+        const {jsPDF}=window.jspdf;
+        const pdf=new jsPDF('p','mm','a4');
+        const pdfW=pdf.internal.pageSize.getWidth();
+        const pdfH=pdf.internal.pageSize.getHeight();
+        const pxToMm=pdfW/794;
+
+        // Render in chunks
+        const sections = [wrap.querySelector('.udoc-cover'), ...wrap.querySelectorAll('.udoc-body > *')];
+        let curY=0; let firstPage=true;
+
+        for(const sec of sections){
+            if(!sec) continue;
+            const subWrap=document.createElement('div');
+            subWrap.style.cssText=`position:absolute;top:-99999px;right:-99999px;width:794px;background:white;font-family:'Cairo',sans-serif;direction:rtl;`;
+            subWrap.appendChild(sec.cloneNode(true));
+            document.body.appendChild(subWrap);
+            await new Promise(r=>setTimeout(r,60));
+            const canvas=await html2canvas(subWrap,{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff'});
+            document.body.removeChild(subWrap);
+            const img=canvas.toDataURL('image/png');
+            const blockH=(canvas.height/2)*pxToMm;
+            if(!firstPage&&curY+blockH>pdfH-5){pdf.addPage();curY=0;}
+            pdf.addImage(img,'PNG',0,curY,pdfW,blockH);
+            curY+=blockH;
+            firstPage=false;
+        }
+
+        document.body.removeChild(wrap);
+        const safe=proj.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g,'_').substring(0,25);
+        pdf.save(`تقرير_UAV_${safe}.pdf`);
+        showToast('تم تحميل التقرير بنجاح!');
+    }catch(e){
+        console.error(e);
+        showToast('حدث خطأ أثناء التحميل','fa-triangle-exclamation');
+    }
+
+    btn.disabled=false;
+    document.getElementById('uav-spinner').style.display='none';
+    document.getElementById('uav-dl-icon').style.display='';
+    document.getElementById('uav-dl-text').textContent='تحميل التقرير PDF';
+}
+
+// ============================================================
+// DYNAMIC PDF (old reports)
+// ============================================================
+async function downloadPDF(){
+    const title=document.getElementById('f-title').value.trim();
+    const date=document.getElementById('f-date').value;
+    if(!title){showToast('يرجى كتابة عنوان التقرير','fa-triangle-exclamation');return;}
+    if(!date){showToast('يرجى تحديد التاريخ','fa-triangle-exclamation');return;}
+
+    const btn=document.getElementById('save-btn');
+    btn.disabled=true;
+    document.getElementById('btn-spinner').style.display='block';
+    document.getElementById('btn-icon').style.display='none';
+    document.getElementById('btn-text').textContent='جاري التحضير...';
+
+    const location=document.getElementById('f-location').value;
+    const author=document.getElementById('f-author').value;
+    const notes=document.getElementById('f-notes').value;
+    const fieldValues=[];
+    if(currentReport&&currentReport.fields){
+        currentReport.fields.forEach(f=>{
+            const el=document.getElementById('ff-'+f.id);
+            fieldValues.push({label:f.label,value:el?el.value:''});
+        });
+    }
+    if(notes.trim())fieldValues.push({label:'ملاحظات عامة',value:notes});
+    const dateStr=new Date(date).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'});
+
+    async function renderBlock(html){
+        const wrap=document.createElement('div');
+        wrap.style.cssText=`position:absolute;top:-99999px;right:-99999px;width:794px;direction:rtl;font-family:'Cairo',sans-serif;background:white;color:#0f1923;`;
+        wrap.innerHTML=html;
+        document.body.appendChild(wrap);
+        await new Promise(r=>setTimeout(r,80));
+        const c=await html2canvas(wrap,{scale:2,useCORS:true,allowTaint:true});
+        document.body.removeChild(wrap);
+        return c;
+    }
+
+    const pdfStyles=`<style>*{box-sizing:border-box;margin:0;padding:0;font-family:'Cairo',sans-serif;}
+    .pdf-cover{background:linear-gradient(135deg,#0f1923,#1a2f4a);padding:56px 50px 48px;color:white;position:relative;overflow:hidden;}
+    .pdf-cover::after{content:'';position:absolute;bottom:-60px;left:-60px;width:220px;height:220px;border-radius:50%;background:rgba(26,92,255,.15);}
+    .pdf-logo-row{display:flex;align-items:center;gap:12px;margin-bottom:36px;}
+    .pdf-logo-box{width:44px;height:44px;background:linear-gradient(135deg,#1a5cff,#8b5cf6);border-radius:11px;display:flex;align-items:center;justify-content:center;}
+    .pdf-logo-box i{color:white;font-size:20px;}
+    .pdf-logo-text{font-size:16px;font-weight:700;opacity:.9;color:white;}
+    .pdf-cover h1{font-size:32px;font-weight:900;margin-bottom:14px;line-height:1.3;position:relative;z-index:1;}
+    .pdf-cover-meta{display:flex;gap:22px;flex-wrap:wrap;opacity:.8;font-size:14px;position:relative;z-index:1;}
+    .pdf-cover-meta span{display:flex;align-items:center;gap:7px;}
+    .pdf-section{border-radius:12px;overflow:hidden;border:1.5px solid #e2e6ec;margin:0;}
+    .pdf-q{background:#f0f2f5;padding:14px 20px;font-size:15px;font-weight:700;color:#0f1923;display:flex;align-items:center;gap:10px;}
+    .pdf-q-dot{width:8px;height:8px;border-radius:50%;background:#1a5cff;flex-shrink:0;}
+    .pdf-a{padding:18px 20px;font-size:14.5px;line-height:1.9;color:#3d4f63;background:white;white-space:pre-line;}
+    .pdf-footer-block{background:#f8f9fb;padding:18px 50px;display:flex;align-items:center;justify-content:space-between;border-top:1.5px solid #e2e6ec;font-size:12.5px;color:#7a8fa6;}</style>`;
+
+    try{
+        const {jsPDF}=window.jspdf;
+        const pdf=new jsPDF('p','mm','a4');
+        const pdfW=pdf.internal.pageSize.getWidth();
+        const pdfH=pdf.internal.pageSize.getHeight();
+        const pxToMm=pdfW/794;
+        let cursorY=0; let firstPage=true;
+
+        const addCanvas=async(canvas)=>{
+            const imgData=canvas.toDataURL('image/png');
+            const blockH=(canvas.height/2)*pxToMm;
+            if(!firstPage&&cursorY+blockH>pdfH-10){pdf.addPage();cursorY=0;}
+            pdf.addImage(imgData,'PNG',0,cursorY,pdfW,blockH);
+            cursorY+=blockH;
+            firstPage=false;
+        };
+
+        await addCanvas(await renderBlock(`${pdfStyles}<div class="pdf-cover"><div class="pdf-logo-row"><div class="pdf-logo-box"><i class="fa-solid fa-leaf"></i></div><div class="pdf-logo-text">نظام التقارير البيئية</div></div><h1>${title}</h1><div class="pdf-cover-meta"><span><i class="fa-solid fa-calendar"></i> ${dateStr}</span>${location?`<span><i class="fa-solid fa-location-dot"></i> ${location}</span>`:''}${author?`<span><i class="fa-solid fa-user"></i> ${author}</span>`:''}<span><i class="fa-solid fa-folder"></i> ${currentCatName}</span></div></div>`));
+
+        const filled=fieldValues.filter(fv=>fv.value.trim());
+        if(!filled.length){await addCanvas(await renderBlock(`${pdfStyles}<div style="text-align:center;padding:48px 50px;color:#aaa;font-size:16px;background:white;">لم يتم إدخال أي بيانات تفصيلية</div>`));}
+        else{for(const fv of filled){await addCanvas(await renderBlock(`${pdfStyles}<div style="padding:10px 50px 0;"><div class="pdf-section"><div class="pdf-q"><div class="pdf-q-dot"></div>${fv.label}</div><div class="pdf-a">${fv.value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div></div></div>`));}}
+
+        cursorY+=4;
+        await addCanvas(await renderBlock(`${pdfStyles}<div class="pdf-footer-block"><span>تم الإنشاء بواسطة نظام التقارير البيئية الذكي</span><span>${dateStr}${author?' | '+author:''}</span></div>`));
+
+        const safe=title.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g,'_').substring(0,30);
+        pdf.save(`تقرير_${safe}.pdf`);
+        showToast('تم تحميل التقرير بنجاح!');
+    }catch(e){console.error(e);showToast('حدث خطأ أثناء التحميل','fa-triangle-exclamation');}
+
+    btn.disabled=false;
+    document.getElementById('btn-spinner').style.display='none';
+    document.getElementById('btn-icon').style.display='';
+    document.getElementById('btn-text').textContent='تحميل التقرير PDF';
+}
+</script>
+</body>
+</html>
