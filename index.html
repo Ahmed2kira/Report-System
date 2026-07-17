@@ -139,6 +139,8 @@
         .save-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
         .btn-secondary{width:100%;padding:13px;background:var(--light-gray);color:var(--text-mid);border:none;border-radius:12px;font-family:'Cairo',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;}
         .btn-secondary:hover{background:var(--border);color:var(--text-dark);}
+        .btn-secondary.draft-btn{background:var(--accent-light);color:var(--accent);}
+        .btn-secondary.draft-btn:hover{background:var(--accent);color:white;}
         .progress-wrap{margin-bottom:16px;}
         .progress-label{display:flex;justify-content:space-between;font-size:13px;color:var(--text-light);margin-bottom:6px;}
         .progress-bar{height:6px;background:var(--light-gray);border-radius:10px;overflow:hidden;}
@@ -420,24 +422,28 @@
             <!-- FIELDS PANEL -->
             <div class="uav-fields-panel">
                 <div class="form-card">
-                    <div class="form-section-title"><i class="fa-solid fa-pen-to-square"></i> البيانات المتغيرة</div>
+                    <div class="form-section-title"><i class="fa-solid fa-pen-to-square"></i> بيانات غلاف التقرير الأساسية</div>
                     <div class="input-group"><label>اسم المشروع <span class="req">*</span></label><input type="text" id="uav-project" placeholder="مثال: مشروع استكشاف مكمن حجاب" oninput="updateUAV()"></div>
                     <div class="input-row">
                         <div class="input-group"><label>اسم الشركة / العميل</label><input type="text" id="uav-client" placeholder="اسم الشركة المالكة" oninput="updateUAV()"></div>
-                        <div class="input-group"><label>اسم الشركة المنفذة</label><input type="text" id="uav-executor" placeholder="اسم الشركة المنفذة" oninput="updateUAV()"></div>
-                    </div>
-                    <div class="input-row">
                         <div class="input-group"><label>الموقع / المحافظة</label><input type="text" id="uav-location" placeholder="مثال: محافظة الدوادمي" oninput="updateUAV()"></div>
-                        <div class="input-group"><label>المساحة الإجمالية</label><input type="text" id="uav-area" placeholder="مثال: 150 كم²" oninput="updateUAV()"></div>
                     </div>
                     <div class="input-row">
                         <div class="input-group"><label>رقم المشروع</label><input type="text" id="uav-projnum" placeholder="مثال: PROJ-2025-001" oninput="updateUAV()"></div>
                         <div class="input-group"><label>إصدار التقرير</label><input type="text" id="uav-version" placeholder="مثال: Rev 01" oninput="updateUAV()"></div>
                     </div>
-                    <div class="input-row">
-                        <div class="input-group"><label>تاريخ التنفيذ</label><input type="date" id="uav-date" oninput="updateUAV()"></div>
-                        <div class="input-group"><label>الوضوح (سم/بكسل)</label><input type="text" id="uav-resolution" placeholder="مثال: 3" oninput="updateUAV()"></div>
+                    <div class="input-group"><label>تاريخ التنفيذ</label><input type="date" id="uav-date" oninput="updateUAV()"></div>
+                </div>
+                <div class="sidebar-card" style="margin-top:16px;">
+                    <div class="sidebar-title"><i class="fa-solid fa-chart-line"></i> تقدم إدخال البيانات</div>
+                    <div class="progress-wrap" style="margin-bottom:0;">
+                        <div class="progress-label"><span>اكتمال البيانات</span><span id="uav-progress-pct">0%</span></div>
+                        <div class="progress-bar"><div class="progress-fill" id="uav-progress-fill"></div></div>
                     </div>
+                </div>
+                <div class="sidebar-card" style="margin-top:16px;" id="uav-page-fields-card">
+                    <div class="sidebar-title"><i class="fa-solid fa-file-pen"></i> <span id="uav-page-fields-title">بيانات هذه الصفحة</span></div>
+                    <div id="uav-page-fields-container"></div>
                 </div>
                 <div class="sidebar-card" style="margin-top:16px;">
                     <div class="sidebar-title"><i class="fa-solid fa-circle-info"></i> ملاحظة</div>
@@ -449,6 +455,7 @@
                         <i class="fa-solid fa-file-pdf" id="uav-dl-icon"></i>
                         <span id="uav-dl-text">تحميل التقرير PDF</span>
                     </button>
+                    <button class="btn-secondary draft-btn" onclick="saveUAVDraft()"><i class="fa-solid fa-floppy-disk"></i> حفظ مؤقت</button>
                     <button class="btn-secondary" onclick="clearUAV()"><i class="fa-solid fa-rotate-right"></i> مسح البيانات</button>
                 </div>
             </div>
@@ -591,6 +598,8 @@ function openReport(catId,reportIdx){
     if(report.isUAV){
         document.getElementById('bc-uav-cat').textContent=cat.name;
         document.getElementById('uav-date').value=new Date().toISOString().split('T')[0];
+        currentSectionIndex = 0;
+        loadUAVDraft();
         updateUAV();
         showPage('page-uav');
         return;
@@ -652,13 +661,106 @@ function showToast(msg,icon='fa-check-circle'){
 }
 
 // ============================================================
+// UAV TEMPORARY DRAFT (sessionStorage) — يحفظ البيانات مؤقتاً حتى لا تُفقد عند التحديث
+// ملاحظة: sessionStorage مرتبط بتبويب/جلسة المتصفح الحالية فقط، وليس بالجهاز ككل،
+// لذلك لا تظهر بيانات أي شخص لشخص آخر يفتح نفس الرابط من تبويب أو جهاز مختلف.
+// ============================================================
+const UAV_DRAFT_KEY = 'uav_report_draft_v1';
+const UAV_FIELD_IDS = ['uav-project','uav-client','uav-location','uav-projnum','uav-version','uav-date'];
+
+function saveUAVDraft(){
+    const data={};
+    UAV_FIELD_IDS.forEach(id=>{
+        const el=document.getElementById(id);
+        if(el)data[id]=el.value;
+    });
+    try{
+        sessionStorage.setItem(UAV_DRAFT_KEY, JSON.stringify(data));
+        // حفظ بيانات كل صفحة على حدة (uavPageData) في مفتاح منفصل حتى لا تُفقد عند التحديث
+        sessionStorage.setItem(UAV_DRAFT_KEY+'_pages', JSON.stringify(uavPageData));
+        showToast('تم الحفظ المؤقت بنجاح','fa-floppy-disk');
+    }catch(e){
+        console.error(e);
+        showToast('حدث خطأ أثناء الحفظ المؤقت','fa-triangle-exclamation');
+    }
+}
+
+function loadUAVDraft(){
+    try{
+        const raw=sessionStorage.getItem(UAV_DRAFT_KEY);
+        if(raw){
+            const data=JSON.parse(raw);
+            UAV_FIELD_IDS.forEach(id=>{
+                if(data[id]!==undefined && data[id]!==''){
+                    const el=document.getElementById(id);
+                    if(el)el.value=data[id];
+                }
+            });
+        }
+        const rawPages=sessionStorage.getItem(UAV_DRAFT_KEY+'_pages');
+        if(rawPages){
+            uavPageData = JSON.parse(rawPages) || {};
+        }
+    }catch(e){console.error(e);}
+}
+
+// ============================================================
 // UAV LIVE PREVIEW with TOC + NAV
 // ============================================================
 let uavSections = [];
 let currentSectionIndex = 0;
 
+// بيانات مستقلة لكل صفحة (section) — كل صفحة لها متغيراتها الخاصة ولا تتأثر بالصفحات الأخرى
+// uavPageData[رقم الصفحة] = { client, executor, location, area, resolution }
+let uavPageData = {};
+
+// الحقول المتاحة للتعديل داخل كل صفحة (حسب المتغيرات المستخدمة فعليًا في محتوى تلك الصفحة)
+const SECTION_FIELD_CONFIG = [
+    /*0  - الملخص التنفيذي        */ [
+        {key:'client', label:'اسم الشركة / العميل (خاص بهذه الصفحة)', placeholder:'اسم الشركة المالكة'},
+        {key:'location', label:'الموقع / المحافظة (خاص بهذه الصفحة)', placeholder:'مثال: محافظة الدوادمي'},
+        {key:'area', label:'المساحة الإجمالية (خاص بهذه الصفحة)', placeholder:'مثال: 150 كم²'},
+        {key:'resolution', label:'الوضوح سم/بكسل (خاص بهذه الصفحة)', placeholder:'مثال: 3'}
+    ],
+    /*1  - نبذة عن المشروع         */ [
+        {key:'location', label:'الموقع / المحافظة (خاص بهذه الصفحة)', placeholder:'مثال: محافظة الدوادمي'},
+        {key:'client', label:'اسم الشركة / العميل (خاص بهذه الصفحة)', placeholder:'اسم الشركة المالكة'},
+        {key:'executor', label:'اسم الشركة المنفذة (خاص بهذه الصفحة)', placeholder:'اسم الشركة المنفذة'},
+        {key:'area', label:'المساحة الإجمالية (خاص بهذه الصفحة)', placeholder:'مثال: 150 كم²'},
+        {key:'resolution', label:'الوضوح سم/بكسل (خاص بهذه الصفحة)', placeholder:'مثال: 3'}
+    ],
+    /*2  - معلومات الموقع          */ [
+        {key:'location', label:'الموقع / المحافظة (خاص بهذه الصفحة)', placeholder:'مثال: محافظة الدوادمي'},
+        {key:'area', label:'المساحة الإجمالية (خاص بهذه الصفحة)', placeholder:'مثال: 150 كم²'}
+    ],
+    /*3  - نطاق الأعمال            */ [
+        {key:'area', label:'المساحة الإجمالية (خاص بهذه الصفحة)', placeholder:'مثال: 150 كم²'},
+        {key:'resolution', label:'الوضوح سم/بكسل (خاص بهذه الصفحة)', placeholder:'مثال: 3'}
+    ],
+    /*4  - المنهجية والمعدات       */ [],
+    /*5  - نقاط الضبط              */ [],
+    /*6  - معالجة البيانات         */ [
+        {key:'resolution', label:'الوضوح سم/بكسل (خاص بهذه الصفحة)', placeholder:'مثال: 3'}
+    ],
+    /*7  - النتائج والمنتجات       */ [
+        {key:'resolution', label:'الوضوح سم/بكسل (خاص بهذه الصفحة)', placeholder:'مثال: 3'},
+        {key:'area', label:'المساحة الإجمالية (خاص بهذه الصفحة)', placeholder:'مثال: 150 كم²'}
+    ],
+    /*8  - التحليل والقيود         */ [],
+    /*9  - الاستنتاجات والتوصيات   */ [
+        {key:'location', label:'الموقع / المحافظة (خاص بهذه الصفحة)', placeholder:'مثال: محافظة الدوادمي'}
+    ],
+    /*10 - قائمة المخرجات          */ [],
+    /*11 - الملاحق                 */ []
+];
+
 function v(id){return document.getElementById(id)?.value?.trim()||'';}
 function disp(val,fallback='غير محدد'){return val||`<span style="color:#c5cdd8;font-style:italic;font-weight:400;">${fallback}</span>`;}
+
+// يرجع قيمة حقل مستقل لصفحة معينة (بدون رجوع للحقول العامة أعلى الفورم)
+function pd(idx, key){
+    return (uavPageData[idx] && uavPageData[idx][key]) ? uavPageData[idx][key] : '';
+}
 
 function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateRaw, res, dateStr){
     function fv(val){ return val ? `<span style="font-weight:700;color:#0f1923;">${esc(val)}</span>` : `<span style="color:#c5cdd8;font-style:italic;font-weight:400;">غير محدد</span>`; }
@@ -669,11 +771,11 @@ function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateR
             content: `
             <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">1.1 نظرة عامة على المشروع</div>
             <div class="udoc-text-block">
-                يهدف مشروع ${fv(proj)} بمحافظة ${fv(loc)} إلى دعم أعمال الاستكشاف المعدني لشركة ${fv(client)} من خلال تنفيذ برنامج متكامل يشمل التصوير والرفع المساحي الجوي والمسح المغناطيسي باستخدام الطائرات بدون طيار على مساحة إجمالية تبلغ ${fv(area)}. يركّز المشروع على جمع بيانات جيوفضائية وجيوفيزيائية عالية الدقة لإنتاج خرائط ونماذج رقمية وبيانات تساعد في تحديد المناطق المستهدفة داخل نطاق الترخيص، بما يعزز الجدوى الفنية لمراحل الاستكشاف اللاحقة. وقد تم تنفيذ الأعمال وفق تصريح رسمي من الهيئة العامة للمساحة والمعلومات الجيومكانية، ويسهم هذا المشروع في دعم أهداف المملكة العربية السعودية الاستراتيجية ضمن رؤية 2030.
+                يهدف مشروع ${fv(proj)} بمحافظة ${fv(pd(0,'location'))} إلى دعم أعمال الاستكشاف المعدني لشركة ${fv(pd(0,'client'))} من خلال تنفيذ برنامج متكامل يشمل التصوير والرفع المساحي الجوي والمسح المغناطيسي باستخدام الطائرات بدون طيار على مساحة إجمالية تبلغ ${fv(pd(0,'area'))}. يركّز المشروع على جمع بيانات جيوفضائية وجيوفيزيائية عالية الدقة لإنتاج خرائط ونماذج رقمية وبيانات تساعد في تحديد المناطق المستهدفة داخل نطاق الترخيص، بما يعزز الجدوى الفنية لمراحل الاستكشاف اللاحقة. وقد تم تنفيذ الأعمال وفق تصريح رسمي من الهيئة العامة للمساحة والمعلومات الجيومكانية، ويسهم هذا المشروع في دعم أهداف المملكة العربية السعودية الاستراتيجية ضمن رؤية 2030.
             </div>
             <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">1.2 نطاق العمل</div>
             <div class="udoc-text-block">
-                يشمل نطاق العمل في مشروع ${fv(loc)} تنفيذ برنامج استكشافي متكامل يعتمد على استخدام الطائرات بدون طيار لجمع بيانات جيوفضائية وجيوفيزيائية عالية الدقة داخل مساحة المشروع البالغة ${fv(area)}.
+                يشمل نطاق العمل في مشروع ${fv(pd(0,'location'))} تنفيذ برنامج استكشافي متكامل يعتمد على استخدام الطائرات بدون طيار لجمع بيانات جيوفضائية وجيوفيزيائية عالية الدقة داخل مساحة المشروع البالغة ${fv(pd(0,'area'))}.
             </div>
             <div class="udoc-bullets-box">
                 <div class="udoc-bullet">إعداد خطط الطيران وفق متطلبات الدقة وكثافة نقاط البيانات.</div>
@@ -684,7 +786,7 @@ function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateR
             </div>
             <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">1.3 أبرز النتائج</div>
             <div class="udoc-bullets-box">
-                <div class="udoc-bullet">تغطية جوية كاملة للموقع البالغ ${fv(area)} بدقة عالية، نتج عنها إنتاج خرائط Orthophoto بدقة تصل إلى أقل من ${fv(res)} سم/بكسل.</div>
+                <div class="udoc-bullet">تغطية جوية كاملة للموقع البالغ ${fv(pd(0,'area'))} بدقة عالية، نتج عنها إنتاج خرائط Orthophoto بدقة تصل إلى أقل من ${fv(pd(0,'resolution'))} سم/بكسل.</div>
                 <div class="udoc-bullet">إنتاج نماذج رقمية دقيقة مكّنت من فهم التضاريس التفصيلية للموقع وأشكال السطح ذات الأهمية الجيولوجية.</div>
                 <div class="udoc-bullet">معالجة البيانات في بيئة مؤمّنة ومطابقة للمعايير الوطنية.</div>
                 <div class="udoc-bullet">تحقيق مستوى عالٍ من الدقة السنتيمترية بفضل نقاط الضبط الأرضية GCPs وأنظمة التصحيح RTK/PPK/NRTK.</div>
@@ -695,7 +797,7 @@ function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateR
                 <div class="udoc-bullet">تقليل المخاطر الجيولوجية والاستكشافية من خلال دمج بيانات التصوير الجوي مع نتائج المسح الأخرى.</div>
                 <div class="udoc-bullet">بناء قاعدة بيانات مكانية وجيوفيزيائية موحدة وقابلة للتطوير.</div>
                 <div class="udoc-bullet">تحسين جودة البيانات مقارنة بالطرق التقليدية باستخدام الطائرات بدون طيار.</div>
-                <div class="udoc-bullet">تسريع دورة العمل الاستكشافي وتغطية ${fv(area)} في فترة زمنية قصيرة.</div>
+                <div class="udoc-bullet">تسريع دورة العمل الاستكشافي وتغطية ${fv(pd(0,'area'))} في فترة زمنية قصيرة.</div>
                 <div class="udoc-bullet">تعزيز الامتثال التنظيمي والأمان السيبراني وفق متطلبات هيئة المساحة.</div>
                 <div class="udoc-bullet">دعم مستهدفات رؤية المملكة 2030 في قطاع التعدين وتنويع مصادر الدخل.</div>
             </div>
@@ -712,7 +814,7 @@ function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateR
             content: `
             <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">2.1 خلفية المشروع</div>
             <div class="udoc-text-block">
-                تُعَد ${fv(loc)} من المناطق ذات الأهمية الجيولوجية وتتميز بانتشار تكوينات صخرية قديمة مرتبطة بعمليات التمعدن، مما يجعلها من المواقع المستهدفة في مبادرات الاستكشاف الوطني. وقد فازت شركة ${fv(client)} بترخيص الاستكشاف للموقع، مما مكّنها من البدء في برنامج استكشافي متكامل لتقييم الإمكانات المعدنية وتحديد نطاقات التمعدن ذات الأولوية داخل حدود المشروع البالغة ${fv(area)}.
+                تُعَد ${fv(pd(1,'location'))} من المناطق ذات الأهمية الجيولوجية وتتميز بانتشار تكوينات صخرية قديمة مرتبطة بعمليات التمعدن، مما يجعلها من المواقع المستهدفة في مبادرات الاستكشاف الوطني. وقد فازت شركة ${fv(pd(1,'client'))} بترخيص الاستكشاف للموقع، مما مكّنها من البدء في برنامج استكشافي متكامل لتقييم الإمكانات المعدنية وتحديد نطاقات التمعدن ذات الأولوية داخل حدود المشروع البالغة ${fv(pd(1,'area'))}.
             </div>
             <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">2.2 رؤية المملكة 2030 ودور قطاع التعدين</div>
             <div class="udoc-text-block">
@@ -720,15 +822,15 @@ function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateR
             </div>
             <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">2.3 الجهات المشاركة</div>
             <div class="udoc-field-grid">
-                <div class="udoc-field"><div class="udoc-field-label">الجهة المالكة / العميل</div><div class="udoc-field-val ${!client?'empty':''}">${client||'غير محدد'}</div></div>
-                <div class="udoc-field"><div class="udoc-field-label">الشركة المنفذة</div><div class="udoc-field-val ${!exec?'empty':''}">${exec||'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">الجهة المالكة / العميل</div><div class="udoc-field-val ${!pd(1,'client')?'empty':''}">${pd(1,'client')||'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">الشركة المنفذة</div><div class="udoc-field-val ${!pd(1,'executor')?'empty':''}">${pd(1,'executor')||'غير محدد'}</div></div>
                 <div class="udoc-field"><div class="udoc-field-label">الجهة المشرفة</div><div class="udoc-field-val">وزارة الصناعة والثروة المعدنية</div></div>
                 <div class="udoc-field"><div class="udoc-field-label">الجهة التنظيمية</div><div class="udoc-field-val">هيئة المساحة والمعلومات الجيومكانية</div></div>
             </div>
             <div class="udoc-section-head" style="background:transparent;border:none;font-size:9.5px;padding:3px 2px;margin-bottom:4px;">2.4 أهداف المشروع</div>
             <div class="udoc-bullets-box">
-                <div class="udoc-bullet">جمع بيانات جيومكانية دقيقة عالية الدقة تغطي ${fv(area)}.</div>
-                <div class="udoc-bullet">إنتاج خرائط Orthophoto بدقة تصل إلى أقل من ${fv(res)} سم/بكسل كمرجع هندسي موثوق.</div>
+                <div class="udoc-bullet">جمع بيانات جيومكانية دقيقة عالية الدقة تغطي ${fv(pd(1,'area'))}.</div>
+                <div class="udoc-bullet">إنتاج خرائط Orthophoto بدقة تصل إلى أقل من ${fv(pd(1,'resolution'))} سم/بكسل كمرجع هندسي موثوق.</div>
                 <div class="udoc-bullet">إنتاج نماذج رقمية دقيقة لفهم التضاريس التفصيلية للموقع وأشكال السطح.</div>
                 <div class="udoc-bullet">معالجة البيانات في بيئة مؤمّنة مطابقة للمعايير الوطنية وضوابط الأمن السيبراني.</div>
                 <div class="udoc-bullet">تحقيق دقة سنتيمترية في نتائج الرفع المساحي بفضل GCPs وأنظمة RTK/PPK/NRTK.</div>
@@ -741,8 +843,8 @@ function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateR
             num: '3', label: 'معلومات الموقع',
             content: `
             <div class="udoc-field-grid three">
-                <div class="udoc-field"><div class="udoc-field-label">الموقع الجغرافي</div><div class="udoc-field-val ${!loc?'empty':''}">${loc||'غير محدد'}</div></div>
-                <div class="udoc-field"><div class="udoc-field-label">المساحة الإجمالية</div><div class="udoc-field-val ${!area?'empty':''}">${area||'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">الموقع الجغرافي</div><div class="udoc-field-val ${!pd(2,'location')?'empty':''}">${pd(2,'location')||'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">المساحة الإجمالية</div><div class="udoc-field-val ${!pd(2,'area')?'empty':''}">${pd(2,'area')||'غير محدد'}</div></div>
                 <div class="udoc-field"><div class="udoc-field-label">المشروع</div><div class="udoc-field-val ${!proj?'empty':''}">${proj||'غير محدد'}</div></div>
             </div>
             <div class="udoc-section-head" style="background:transparent;border:none;font-size:9px;padding:3px 2px;margin-bottom:3px;">الحدود الإدارية / طبيعة التضاريس / سهولة الوصول / الاستخدامات الحالية / الظروف البيئية</div>
@@ -758,8 +860,8 @@ function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateR
             num: '4', label: 'نطاق الأعمال',
             content: `
             <div class="udoc-bullets-box">
-                <div class="udoc-bullet">التصوير والرفع المساحي الجوي (Aerial Photogrammetry Survey): تغطية كاملة لـ ${fv(area)} بكاميرات RGB عالية الدقة.</div>
-                <div class="udoc-bullet">إنتاج Orthophoto بدقة ${fv(res)} سم/بكسل، DEM، DSM، Contours، Point Cloud، GIS Layers، CAD Files.</div>
+                <div class="udoc-bullet">التصوير والرفع المساحي الجوي (Aerial Photogrammetry Survey): تغطية كاملة لـ ${fv(pd(3,'area'))} بكاميرات RGB عالية الدقة.</div>
+                <div class="udoc-bullet">إنتاج Orthophoto بدقة ${fv(pd(3,'resolution'))} سم/بكسل، DEM، DSM، Contours، Point Cloud، GIS Layers، CAD Files.</div>
                 <div class="udoc-bullet">استخدام نقاط ضبط GCPs وأنظمة RTK/PPK/NRTK لضمان الدقة السنتيمترية.</div>
                 <div class="udoc-bullet">معالجة وتحليل البيانات (Data Processing & Analysis) في بيئة آمنة متوافقة مع متطلبات الهيئة.</div>
                 <div class="udoc-bullet">تطبيق ضوابط الجودة ومعايير أمن البيانات وحماية المعلومات الجيومكانية.</div>
@@ -792,7 +894,7 @@ function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateR
             content: `
             <div class="udoc-bullets-box">
                 <div class="udoc-bullet">معالجة الصور الجوية وإنتاج نموذج Point Cloud كثيف.</div>
-                <div class="udoc-bullet">إنتاج Orthophoto متجانسة بدقة ${fv(res)} سم/بكسل.</div>
+                <div class="udoc-bullet">إنتاج Orthophoto متجانسة بدقة ${fv(pd(6,'resolution'))} سم/بكسل.</div>
                 <div class="udoc-bullet">إنتاج DEM/DSM بدقة عالية لتمثيل السطح.</div>
                 <div class="udoc-bullet">تطبيق معايير ضمان الجودة RMSE على نقاط التحقق (Check Points).</div>
                 <div class="udoc-bullet">مراجعة ومطابقة البيانات مع الاشتراطات الوطنية لهيئة المساحة.</div>
@@ -804,8 +906,8 @@ function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateR
             content: `
             <div class="udoc-field-grid three">
                 <div class="udoc-field"><div class="udoc-field-label">المنتج</div><div class="udoc-field-val">Orthophoto</div></div>
-                <div class="udoc-field"><div class="udoc-field-label">الدقة</div><div class="udoc-field-val ${!res?'empty':''}">${res?res+' سم/بكسل':'غير محدد'}</div></div>
-                <div class="udoc-field"><div class="udoc-field-label">التغطية</div><div class="udoc-field-val ${!area?'empty':''}">${area||'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">الدقة</div><div class="udoc-field-val ${!pd(7,'resolution')?'empty':''}">${pd(7,'resolution')?pd(7,'resolution')+' سم/بكسل':'غير محدد'}</div></div>
+                <div class="udoc-field"><div class="udoc-field-label">التغطية</div><div class="udoc-field-val ${!pd(7,'area')?'empty':''}">${pd(7,'area')||'غير محدد'}</div></div>
                 <div class="udoc-field"><div class="udoc-field-label">المنتج</div><div class="udoc-field-val">DEM / DSM</div></div>
                 <div class="udoc-field"><div class="udoc-field-label">التنسيق</div><div class="udoc-field-val">GeoTIFF / LAS</div></div>
                 <div class="udoc-field"><div class="udoc-field-label">نظام الإسناد</div><div class="udoc-field-val">WGS84 UTM</div></div>
@@ -831,7 +933,7 @@ function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateR
             num: '15-16', label: 'الاستنتاجات والتوصيات',
             content: `
             <div class="udoc-text-block">
-                نجح مشروع ${fv(proj)} في تحقيق أهدافه الفنية المتمثلة في جمع بيانات جيوفضائية وجيوفيزيائية عالية الدقة لمنطقة ${fv(loc)}. المخرجات الناتجة تُشكّل قاعدة صلبة لمراحل الاستكشاف التفصيلي والحفر التعديني.
+                نجح مشروع ${fv(proj)} في تحقيق أهدافه الفنية المتمثلة في جمع بيانات جيوفضائية وجيوفيزيائية عالية الدقة لمنطقة ${fv(pd(9,'location'))}. المخرجات الناتجة تُشكّل قاعدة صلبة لمراحل الاستكشاف التفصيلي والحفر التعديني.
             </div>
             <div class="udoc-bullets-box">
                 <div class="udoc-bullet">الاستفادة من النماذج الرقمية والطبقات الجيومكانية في تخطيط الحركة الميدانية.</div>
@@ -866,20 +968,47 @@ function buildUAVSections(proj, client, exec, loc, area, projnum, version, dateR
 function updateUAV(){
     const proj    = v('uav-project');
     const client  = v('uav-client');
-    const exec    = v('uav-executor');
+    const exec    = ''; // شركة المنفذ بقت خاصة بكل صفحة على حدة
     const loc     = v('uav-location');
-    const area    = v('uav-area');
+    const area    = ''; // المساحة بقت خاصة بكل صفحة على حدة
     const projnum = v('uav-projnum');
     const version = v('uav-version');
     const dateRaw = v('uav-date');
-    const res     = v('uav-resolution');
+    const res     = ''; // الوضوح بقى خاص بكل صفحة على حدة
 
     let dateStr = 'غير محدد';
     if(dateRaw){ try{ dateStr=new Date(dateRaw).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); }catch(e){} }
 
     uavSections = buildUAVSections(proj, client, exec, loc, area, projnum, version, dateRaw, res, dateStr);
-    currentSectionIndex = 0;
+    if(currentSectionIndex >= uavSections.length) currentSectionIndex = 0;
     renderUAVSection(proj, client, loc, area, projnum, version, dateStr, dateRaw);
+    renderPageFieldsPanel();
+    updateUAVProgress();
+}
+
+function updateUAVProgress(){
+    // يحسب نسبة الاكتمال على أساس التقرير بالكامل: بيانات الغلاف + بيانات كل صفحة من الصفحات الـ12
+    let total=0, filled=0;
+
+    UAV_FIELD_IDS.forEach(id=>{
+        total++;
+        const el=document.getElementById(id);
+        if(el && el.value.trim())filled++;
+    });
+
+    SECTION_FIELD_CONFIG.forEach((fields, idx)=>{
+        const data = uavPageData[idx] || {};
+        fields.forEach(f=>{
+            total++;
+            if(data[f.key] && data[f.key].trim())filled++;
+        });
+    });
+
+    const pct=Math.round((filled/total)*100)||0;
+    const fillEl=document.getElementById('uav-progress-fill');
+    const pctEl=document.getElementById('uav-progress-pct');
+    if(fillEl)fillEl.style.width=pct+'%';
+    if(pctEl)pctEl.textContent=pct+'%';
 }
 
 function renderUAVSection(proj, client, loc, area, projnum, version, dateStr, dateRaw){
@@ -953,19 +1082,62 @@ function renderUAVSection(proj, client, loc, area, projnum, version, dateStr, da
     container.innerHTML = tocHtml + contentHtml;
 }
 
+// يعرض حقول الإدخال الخاصة بالصفحة المفتوحة حاليًا فقط (كل صفحة بياناتها منفصلة عن الباقي)
+function renderPageFieldsPanel(){
+    const container = document.getElementById('uav-page-fields-container');
+    const titleEl = document.getElementById('uav-page-fields-title');
+    if(!container) return;
+    const section = uavSections[currentSectionIndex];
+    if(titleEl) titleEl.textContent = 'بيانات صفحة: ' + (section ? (section.num+' - '+section.label) : '');
+    const fields = SECTION_FIELD_CONFIG[currentSectionIndex] || [];
+    if(!fields.length){
+        container.innerHTML = `<p style="font-size:13px;color:var(--text-light);line-height:1.8;margin:0;">لا توجد بيانات متغيرة خاصة بهذه الصفحة.</p>`;
+        return;
+    }
+    if(!uavPageData[currentSectionIndex]) uavPageData[currentSectionIndex] = {};
+    const data = uavPageData[currentSectionIndex];
+    container.innerHTML = fields.map(f=>`
+        <div class="input-group" style="margin-bottom:14px;">
+            <label>${f.label}</label>
+            <input type="text" value="${(data[f.key]||'').replace(/"/g,'&quot;')}" placeholder="${f.placeholder||''}" oninput="updateUAVPageField('${f.key}', this.value)">
+        </div>
+    `).join('');
+}
+
+// يحدّث قيمة حقل خاص بالصفحة الحالية فقط، بدون التأثير على أي صفحة أخرى
+function updateUAVPageField(key, value){
+    if(!uavPageData[currentSectionIndex]) uavPageData[currentSectionIndex] = {};
+    uavPageData[currentSectionIndex][key] = value;
+    rebuildUAVKeepPosition();
+    updateUAVProgress();
+}
+
+// يعيد بناء محتوى كل الصفحات (لتطبيق بيانات الصفحة التي عُدّلت للتو) مع البقاء على نفس الصفحة المفتوحة
+// ملاحظة مهمة: هذه الدالة لا تُعيد رسم لوحة "بيانات هذه الصفحة" نفسها حتى لا يفقد حقل الإدخال التركيز
+// أثناء الكتابة (وهو سبب مشكلة قبول حرف واحد فقط) — فقط تُحدّث معاينة التقرير في المنتصف.
+function rebuildUAVKeepPosition(){
+    const proj=v('uav-project'), client=v('uav-client'), exec='', loc=v('uav-location'),
+          area='', projnum=v('uav-projnum'), version=v('uav-version'), dateRaw=v('uav-date'), res='';
+    let dateStr='غير محدد';
+    if(dateRaw){ try{ dateStr=new Date(dateRaw).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); }catch(e){} }
+    uavSections = buildUAVSections(proj, client, exec, loc, area, projnum, version, dateRaw, res, dateStr);
+    renderUAVSection(proj, client, loc, area, projnum, version, dateStr, dateRaw);
+}
+
 function goToUAVSection(idx){
     if(idx < 0 || idx >= uavSections.length) return;
     currentSectionIndex = idx;
     const proj = v('uav-project');
     const client = v('uav-client');
     const loc = v('uav-location');
-    const area = v('uav-area');
+    const area = '';
     const projnum = v('uav-projnum');
     const version = v('uav-version');
     const dateRaw = v('uav-date');
     let dateStr = 'غير محدد';
     if(dateRaw){ try{ dateStr=new Date(dateRaw).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); }catch(e){} }
     renderUAVSection(proj, client, loc, area, projnum, version, dateStr, dateRaw);
+    renderPageFieldsPanel();
     // scroll the preview to top
     document.querySelector('.uav-preview-scroll')?.scrollTo({top:0,behavior:'smooth'});
 }
@@ -973,10 +1145,12 @@ function goToUAVSection(idx){
 function esc(s){return s?s.replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])):''}
 
 function clearUAV(){
-    ['uav-project','uav-client','uav-executor','uav-location','uav-area','uav-projnum','uav-version','uav-date','uav-resolution'].forEach(id=>{
+    ['uav-project','uav-client','uav-location','uav-projnum','uav-version','uav-date'].forEach(id=>{
         const el=document.getElementById(id); if(el)el.value='';
     });
     document.getElementById('uav-date').value=new Date().toISOString().split('T')[0];
+    uavPageData = {};
+    try{ sessionStorage.removeItem(UAV_DRAFT_KEY); sessionStorage.removeItem(UAV_DRAFT_KEY+'_pages'); }catch(e){}
     updateUAV();
     showToast('تم مسح البيانات','fa-rotate-right');
 }
