@@ -1094,7 +1094,8 @@ async function notifyPortalReportCompleted(reportKey, reportTitle, projectName, 
     if (!PORTAL_TOKEN) return;
     try {
         await fetch(PORTAL_ACTIVITY_ENDPOINT, {
-            method: 'POST', mode: 'cors', headers: {'Content-Type': 'application/json'},
+            method: 'POST', mode: 'no-cors', keepalive: true,
+            headers: {'Content-Type': 'text/plain;charset=UTF-8'},
             body: JSON.stringify({portal_token: PORTAL_TOKEN, report_key: reportKey, report_title: reportTitle, project_name: projectName, status: 'completed', pdf_filename: pdfFilename})
         });
     } catch (error) { console.warn('Portal activity could not be recorded:', error); }
