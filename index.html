@@ -1091,10 +1091,26 @@
 const PORTAL_ACTIVITY_ENDPOINT = 'https://aisuav.freedev.app/report_activity.php';
 const PORTAL_TOKEN = new URLSearchParams(window.location.search).get('portal_token') || '';
 async function notifyPortalReportCompleted(reportKey, reportTitle, projectName, pdfFilename) {
-    if (!PORTAL_TOKEN) return;
-    const params = new URLSearchParams({portal_token: PORTAL_TOKEN, report_key: reportKey, report_title: reportTitle, project_name: projectName, status: 'completed', pdf_filename: pdfFilename});
-    // GET no-cors request avoids InfinityFree CORS preflight restrictions.
-    try { await fetch(PORTAL_ACTIVITY_ENDPOINT + '?' + params.toString(), {method: 'GET', mode: 'no-cors', keepalive: true}); } catch (error) { console.warn('Portal activity request failed:', error); }
+    if (!PORTAL_TOKEN) return false;
+    const payload = {portal_token: PORTAL_TOKEN, report_key: reportKey, report_title: reportTitle, project_name: projectName, status: 'completed', pdf_filename: pdfFilename};
+    const json = JSON.stringify(payload);
+    try {
+        // sendBeacon survives the PDF download/page transition and uses a CORS-safelisted text/plain POST.
+        const queued = navigator.sendBeacon(
+            PORTAL_ACTIVITY_ENDPOINT,
+            new Blob([json], {type: 'text/plain;charset=UTF-8'})
+        );
+        if (queued) return true;
+    } catch (error) { console.warn('Portal beacon failed:', error); }
+    // Fallback for browsers that do not accept sendBeacon.
+    try {
+        const params = new URLSearchParams(payload);
+        await fetch(PORTAL_ACTIVITY_ENDPOINT + '?' + params.toString(), {method: 'GET', mode: 'no-cors', keepalive: true});
+        return true;
+    } catch (error) {
+        console.warn('Portal activity request failed:', error);
+        return false;
+    }
 }
 
 // ============================================================
@@ -2031,8 +2047,9 @@ async function downloadReportPDF(draftKey){
         const fileTitle = currentLanguage === 'en' ? translateString(config.title) : config.title;
         const safe = (fileTitle + '_' + proj).replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').substring(0,40) || 'report';
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${safe}.pdf`;
-        await notifyPortalReportCompleted(draftKey, config.title || draftKey, proj, savedFilename);
+        const portalRecorded = await notifyPortalReportCompleted(draftKey, config.title || draftKey, proj, savedFilename);
         pdf.save(savedFilename);
+        if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
         showToast('تم تحميل التقرير بنجاح!');
     }catch(e){
         console.error(e);
@@ -2166,8 +2183,9 @@ async function downloadPDF(){
         const safe = title.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g,'_').substring(0,30);
         const englishSafe = currentLanguage === 'en' ? safe.replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'') : safe;
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${englishSafe || 'report'}.pdf`;
-        await notifyPortalReportCompleted((currentReport && (currentReport.id || currentReport.key)) || 'dynamic-report', (currentReport && (currentReport.title || currentReport.name)) || currentCatName || 'Report', title, savedFilename);
+        const portalRecorded = await notifyPortalReportCompleted((currentReport && (currentReport.id || currentReport.key)) || 'dynamic-report', (currentReport && (currentReport.title || currentReport.name)) || currentCatName || 'Report', title, savedFilename);
         pdf.save(savedFilename);
+        if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
         showToast('تم تحميل التقرير بنجاح!');
     }catch(e){console.error(e); showToast('حدث خطأ أثناء التحميل','fa-triangle-exclamation');}
 
