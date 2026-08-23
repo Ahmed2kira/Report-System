@@ -1094,14 +1094,17 @@ async function notifyPortalReportCompleted(reportKey, reportTitle, projectName, 
     if (!PORTAL_TOKEN) return false;
     const params = new URLSearchParams({portal_token: PORTAL_TOKEN, report_key: reportKey, report_title: reportTitle, project_name: projectName, status: 'completed', pdf_filename: pdfFilename});
     try {
-        // Direct GET request is sent before PDF download, avoiding CORS preflight and page-transition cancellation.
-        const requestUrl = PORTAL_ACTIVITY_ENDPOINT + '?' + params.toString();
-        const requestImage = new Image();
-        requestImage.src = requestUrl;
-        await new Promise(resolve => setTimeout(resolve, 900));
+        // GET is a simple CORS request: no preflight, and we wait for PHP's actual JSON response before pdf.save().
+        const response = await fetch(PORTAL_ACTIVITY_ENDPOINT + '?' + params.toString(), {
+            method: 'GET', mode: 'cors', cache: 'no-store', credentials: 'omit'
+        });
+        if (!response.ok) throw new Error('Portal HTTP ' + response.status);
+        const result = await response.json();
+        if (!result || result.ok !== true) throw new Error(result && result.error ? result.error : 'Portal rejected activity');
         return true;
     } catch (error) {
         console.warn('Portal activity request failed:', error);
+        showToast('تم حفظ التقرير محليًا، لكن تعذر تسجيله في لوحة الأدمن','fa-triangle-exclamation');
         return false;
     }
 }
