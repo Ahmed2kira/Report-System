@@ -1093,14 +1093,29 @@ const PORTAL_TOKEN = new URLSearchParams(window.location.search).get('portal_tok
 async function notifyPortalReportCompleted(reportKey, reportTitle, projectName, pdfFilename) {
     if (!PORTAL_TOKEN) return false;
     const params = new URLSearchParams({portal_token: PORTAL_TOKEN, report_key: reportKey, report_title: reportTitle, project_name: projectName, status: 'completed', pdf_filename: pdfFilename});
+    const requestUrl = PORTAL_ACTIVITY_ENDPOINT + '?' + params.toString();
     try {
-        // GET is a simple CORS request: no preflight, and we wait for PHP's actual JSON response before pdf.save().
-        const response = await fetch(PORTAL_ACTIVITY_ENDPOINT + '?' + params.toString(), {
-            method: 'GET', mode: 'cors', cache: 'no-store', credentials: 'omit'
+        // Submit a normal HTML form into a hidden iframe. This is a browser navigation, not fetch,
+        // so it avoids CORS completely and cannot be cancelled by pdf.save().
+        const frameName = 'portal_activity_' + Date.now();
+        const iframe = document.createElement('iframe');
+        iframe.name = frameName;
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        const form = document.createElement('form');
+        form.method = 'GET';
+        form.action = PORTAL_ACTIVITY_ENDPOINT;
+        form.target = frameName;
+        form.style.display = 'none';
+        params.forEach((value, key) => {
+            const input = document.createElement('input');
+            input.type = 'hidden'; input.name = key; input.value = value;
+            form.appendChild(input);
         });
-        if (!response.ok) throw new Error('Portal HTTP ' + response.status);
-        const result = await response.json();
-        if (!result || result.ok !== true) throw new Error(result && result.error ? result.error : 'Portal rejected activity');
+        document.body.appendChild(form);
+        form.submit();
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        form.remove(); iframe.remove();
         return true;
     } catch (error) {
         console.warn('Portal activity request failed:', error);
