@@ -1092,20 +1092,13 @@ const PORTAL_ACTIVITY_ENDPOINT = 'https://aisuav.freedev.app/report_activity.php
 const PORTAL_TOKEN = new URLSearchParams(window.location.search).get('portal_token') || '';
 async function notifyPortalReportCompleted(reportKey, reportTitle, projectName, pdfFilename) {
     if (!PORTAL_TOKEN) return false;
-    const payload = {portal_token: PORTAL_TOKEN, report_key: reportKey, report_title: reportTitle, project_name: projectName, status: 'completed', pdf_filename: pdfFilename};
-    const json = JSON.stringify(payload);
+    const params = new URLSearchParams({portal_token: PORTAL_TOKEN, report_key: reportKey, report_title: reportTitle, project_name: projectName, status: 'completed', pdf_filename: pdfFilename});
     try {
-        // sendBeacon survives the PDF download/page transition and uses a CORS-safelisted text/plain POST.
-        const queued = navigator.sendBeacon(
-            PORTAL_ACTIVITY_ENDPOINT,
-            new Blob([json], {type: 'text/plain;charset=UTF-8'})
-        );
-        if (queued) return true;
-    } catch (error) { console.warn('Portal beacon failed:', error); }
-    // Fallback for browsers that do not accept sendBeacon.
-    try {
-        const params = new URLSearchParams(payload);
-        await fetch(PORTAL_ACTIVITY_ENDPOINT + '?' + params.toString(), {method: 'GET', mode: 'no-cors', keepalive: true});
+        // Direct GET request is sent before PDF download, avoiding CORS preflight and page-transition cancellation.
+        const requestUrl = PORTAL_ACTIVITY_ENDPOINT + '?' + params.toString();
+        const requestImage = new Image();
+        requestImage.src = requestUrl;
+        await new Promise(resolve => setTimeout(resolve, 900));
         return true;
     } catch (error) {
         console.warn('Portal activity request failed:', error);
