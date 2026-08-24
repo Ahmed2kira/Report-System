@@ -1093,10 +1093,22 @@ const PORTAL_TOKEN = new URLSearchParams(window.location.search).get('portal_tok
 function openPortalTrackingWindow() {
     if (!PORTAL_TOKEN) return null;
     try {
-        const trackingWindow = window.open('about:blank', 'portal_activity_window', 'width=420,height=240');
+        const isEnglish = currentLanguage === 'en';
+        const trackingWindow = window.open('about:blank', 'portal_activity_window', 'width=460,height=300');
         if (trackingWindow) {
-            trackingWindow.document.title = 'Saving report';
-            trackingWindow.document.body.innerHTML = '<p style="font-family:Arial;padding:24px">Saving report activity...</p>';
+            const title = isEnglish ? 'Saving report' : 'جاري حفظ التقرير';
+            const subtitle = isEnglish ? 'Please wait while your report is being saved securely.' : 'يرجى الانتظار، يتم الآن حفظ التقرير بأمان.';
+            trackingWindow.document.title = title;
+            trackingWindow.document.body.innerHTML = `
+                <style>
+                    *{box-sizing:border-box}body{margin:0;background:#f4f7fb;font-family:Arial,Tahoma,sans-serif;color:#122033;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:22px}
+                    .card{width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:26px 24px 22px;text-align:center;box-shadow:0 14px 40px rgba(15,25,35,.12)}
+                    .icon{width:58px;height:58px;margin:0 auto 15px;border-radius:17px;background:linear-gradient(135deg,#1a5cff,#8b5cf6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px}
+                    h2{font-size:20px;margin:0 0 8px;font-weight:800}p{font-size:13px;color:#718096;line-height:1.6;margin:0 0 20px}
+                    .track{height:9px;background:#e9eef6;border-radius:99px;overflow:hidden}.fill{height:100%;width:8%;border-radius:99px;background:linear-gradient(90deg,#1a5cff,#8b5cf6);animation:progress 1.5s ease-in-out infinite alternate}
+                    .hint{font-size:11px;color:#94a3b8;margin-top:13px}@keyframes progress{from{width:12%}to{width:88%}}
+                </style>
+                <div class="card" dir="${isEnglish ? 'ltr' : 'rtl'}"><div class="icon">✓</div><h2>${title}</h2><p>${subtitle}</p><div class="track"><div class="fill"></div></div><div class="hint">${isEnglish ? 'Do not close this window.' : 'لا تغلق هذه النافذة.'}</div></div>`;
         }
         return trackingWindow;
     } catch (error) {
