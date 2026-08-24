@@ -1248,8 +1248,9 @@ function goHome(){showPage('page-home');}
 function goReports(){if(currentCatId!==null)openCategory(currentCatId);else openCategory(0);}
 
 function openCategory(catId){
-    currentCatId=catId;
-    const cat=CATEGORIES[catId];
+    const cat=CATEGORIES.find(item => Number(item.id) === Number(catId));
+    if(!cat){ console.warn('Category not found:', catId); return; }
+    currentCatId=cat.id;
     currentCatName=cat.name;
     document.getElementById('breadcrumb-cat').textContent=cat.name;
     document.getElementById('reports-page-title').textContent=cat.name;
@@ -1284,9 +1285,10 @@ function openCategory(catId){
 }
 
 function openReport(catId, reportIdx){
-    const cat=CATEGORIES[catId];
+    const cat=CATEGORIES.find(item => Number(item.id) === Number(catId));
+    if(!cat || !cat.reports[reportIdx]){ console.warn('Report not found:', catId, reportIdx); return; }
     const report=cat.reports[reportIdx];
-    currentCatId=catId;
+    currentCatId=cat.id;
     currentCatName=cat.name;
     currentReport=report;
     currentReportType = report.type || '';
