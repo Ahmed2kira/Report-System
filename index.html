@@ -1089,64 +1089,7 @@
 <script>
 // Portal integration: the secret never lives in this public page; the portal validates the short-lived token.
 const PORTAL_ACTIVITY_ENDPOINT = 'https://aisuav.freedev.app/report_activity.php';
-const PORTAL_PDF_UPLOAD_ENDPOINT = 'https://aisuav.freedev.app/upload_report_pdf.php';
 const PORTAL_TOKEN = new URLSearchParams(window.location.search).get('portal_token') || '';
-
-async function uploadPdfToPortal(pdfBlob, pdfFilename, reportKey, reportTitle, projectName) {
-    window.__pdfUploadError = '';
-    if (!PORTAL_TOKEN || !pdfBlob) { window.__pdfUploadError = 'missing_token_or_blob'; return ''; }
-    try {
-        const tokenPart = PORTAL_TOKEN.split('.')[0] || '';
-        const uniquePart = (window.crypto && crypto.randomUUID) ? crypto.randomUUID().replace(/-/g,'') : (Date.now().toString(36) + Math.random().toString(36).slice(2));
-        const storedPath = 'report_' + tokenPart.slice(-12) + '_' + uniquePart.slice(0,20) + '.pdf';
-        const dataUrl = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result || ''));
-            reader.onerror = reject;
-            reader.readAsDataURL(pdfBlob);
-        });
-        const frameName = 'pdf_upload_' + Date.now().toString(36);
-        const iframe = document.createElement('iframe');
-        iframe.name = frameName;
-        iframe.style.cssText = 'position:fixed;width:1px;height:1px;left:-10000px;top:-10000px;border:0;opacity:0;';
-        document.body.appendChild(iframe);
-        const form = document.createElement('form');
-        form.method = 'POST'; form.action = PORTAL_PDF_UPLOAD_ENDPOINT; form.target = frameName;
-        form.enctype = 'application/x-www-form-urlencoded'; form.style.display = 'none';
-        const tokenInput = document.createElement('input'); tokenInput.type = 'hidden'; tokenInput.name = 'portal_token'; tokenInput.value = PORTAL_TOKEN;
-        const pathInput = document.createElement('input'); pathInput.type = 'hidden'; pathInput.name = 'pdf_path'; pathInput.value = storedPath;
-        const keyInput = document.createElement('input'); keyInput.type = 'hidden'; keyInput.name = 'report_key'; keyInput.value = reportKey || 'dynamic-report';
-        const titleInput = document.createElement('input'); titleInput.type = 'hidden'; titleInput.name = 'report_title'; titleInput.value = reportTitle || 'Report';
-        const projectInput = document.createElement('input'); projectInput.type = 'hidden'; projectInput.name = 'project_name'; projectInput.value = projectName || '';
-        const statusInput = document.createElement('input'); statusInput.type = 'hidden'; statusInput.name = 'status'; statusInput.value = 'completed';
-        const filenameInput = document.createElement('input'); filenameInput.type = 'hidden'; filenameInput.name = 'pdf_filename'; filenameInput.value = pdfFilename || 'report.pdf';
-        const transportInput = document.createElement('input'); transportInput.type = 'hidden'; transportInput.name = 'transport'; transportInput.value = 'iframe';
-        const pdfInput = document.createElement('textarea'); pdfInput.name = 'pdf_base64'; pdfInput.value = dataUrl; pdfInput.style.display = 'none';
-        form.append(tokenInput, pathInput, keyInput, titleInput, projectInput, statusInput, filenameInput, transportInput, pdfInput); document.body.appendChild(form);
-        const uploadResult = await new Promise(resolve => {
-            let settled = false;
-            const finish = result => { if (!settled) { settled = true; window.removeEventListener('message', onMessage); resolve(result); } };
-            const onMessage = event => {
-                if (event.origin !== 'https://aisuav.freedev.app' || event.source !== iframe.contentWindow) return;
-                const data = event.data || {};
-                if (data.type === 'reportUploadResult') finish(data);
-            };
-            window.addEventListener('message', onMessage);
-            window.setTimeout(() => finish({ok:false, error:'upload_timeout'}), 20000);
-            form.submit();
-        });
-        form.remove(); iframe.remove();
-        if (!uploadResult || !uploadResult.ok || !uploadResult.pdf_path) {
-            window.__pdfUploadError = (uploadResult && uploadResult.error) || 'upload_failed';
-            return '';
-        }
-        return String(uploadResult.pdf_path);
-    } catch (error) {
-        window.__pdfUploadError = 'direct_form_upload_failed';
-        console.warn('PDF could not be uploaded to the portal:', error);
-        return '';
-    }
-}
 function openPortalTrackingWindow() {
     if (!PORTAL_TOKEN) return null;
     try {
@@ -1174,10 +1117,9 @@ function openPortalTrackingWindow() {
     }
 }
 
-async function notifyPortalReportCompleted(reportKey, reportTitle, projectName, pdfFilename, trackingWindow, pdfPath = '') {
+async function notifyPortalReportCompleted(reportKey, reportTitle, projectName, pdfFilename, trackingWindow) {
     if (!PORTAL_TOKEN) return false;
     const params = new URLSearchParams({portal_token: PORTAL_TOKEN, report_key: reportKey, report_title: reportTitle, project_name: projectName, status: 'completed', pdf_filename: pdfFilename});
-    if (pdfPath) params.set('pdf_path', pdfPath);
     const requestUrl = PORTAL_ACTIVITY_ENDPOINT + '?' + params.toString();
     try {
         // A normal user-initiated navigation avoids CORS and is allowed by the browser before pdf.save().
@@ -2135,11 +2077,10 @@ async function downloadReportPDF(draftKey){
         const fileTitle = currentLanguage === 'en' ? translateString(config.title) : config.title;
         const safe = (fileTitle + '_' + proj).replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').substring(0,40) || 'report';
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${safe}.pdf`;
-        const pdfBlob = pdf.output('blob');
-        const pdfPath = await uploadPdfToPortal(pdfBlob, savedFilename, draftKey, config.title || draftKey, proj);
-        if (!pdfPath) { const uploadError = window.__pdfUploadError || 'unknown_error'; console.warn('نسخة PDF لم تُرفع إلى البوابة: ' + uploadError); if (typeof showToast === 'function') showToast('تعذر حفظ نسخة PDF في لوحة الأدمن: ' + uploadError, 'fa-triangle-exclamation'); }
+        const portalRecorded = await notifyPortalReportCompleted(draftKey, config.title || draftKey, proj, savedFilename, trackingWindow);
         pdf.save(savedFilename);
-        showToast(pdfPath ? 'تم حفظ التقرير ورفعه إلى لوحة الأدمن بنجاح!' : 'تم تحميل التقرير على جهازك، لكن لم يتم حفظه في لوحة الأدمن', pdfPath ? 'fa-check' : 'fa-triangle-exclamation');
+        if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
+        showToast('تم تحميل التقرير بنجاح!');
     }catch(e){
         console.error(e);
         showToast('حدث خطأ أثناء التحميل','fa-triangle-exclamation');
@@ -2273,13 +2214,10 @@ async function downloadPDF(){
         const safe = title.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g,'_').substring(0,30);
         const englishSafe = currentLanguage === 'en' ? safe.replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'') : safe;
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${englishSafe || 'report'}.pdf`;
-        const pdfBlob = pdf.output('blob');
-        const reportKey = (currentReport && (currentReport.id || currentReport.key)) || 'dynamic-report';
-        const reportTitle = (currentReport && (currentReport.title || currentReport.name)) || currentCatName || 'Report';
-        const pdfPath = await uploadPdfToPortal(pdfBlob, savedFilename, reportKey, reportTitle, title);
-        if (!pdfPath) { const uploadError = window.__pdfUploadError || 'unknown_error'; console.warn('نسخة PDF لم تُرفع إلى البوابة: ' + uploadError); if (typeof showToast === 'function') showToast('تعذر حفظ نسخة PDF في لوحة الأدمن: ' + uploadError, 'fa-triangle-exclamation'); }
+        const portalRecorded = await notifyPortalReportCompleted((currentReport && (currentReport.id || currentReport.key)) || 'dynamic-report', (currentReport && (currentReport.title || currentReport.name)) || currentCatName || 'Report', title, savedFilename, trackingWindow);
         pdf.save(savedFilename);
-        showToast(pdfPath ? 'تم حفظ التقرير ورفعه إلى لوحة الأدمن بنجاح!' : 'تم تحميل التقرير على جهازك، لكن لم يتم حفظه في لوحة الأدمن', pdfPath ? 'fa-check' : 'fa-triangle-exclamation');
+        if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
+        showToast('تم تحميل التقرير بنجاح!');
     }catch(e){console.error(e); showToast('حدث خطأ أثناء التحميل','fa-triangle-exclamation');}
 
     btn.disabled=false;
