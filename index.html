@@ -2103,7 +2103,7 @@ async function downloadReportPDF(draftKey){
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${safe}.pdf`;
         const pdfBlob = pdf.output('blob');
         const pdfPath = await uploadPdfToPortal(pdfBlob, savedFilename);
-        if (!pdfPath) console.warn('نسخة PDF لم تُرفع إلى البوابة: ' + (window.__pdfUploadError || 'unknown_error'));
+        if (!pdfPath) { const uploadError = window.__pdfUploadError || 'unknown_error'; console.warn('نسخة PDF لم تُرفع إلى البوابة: ' + uploadError); if (typeof showToast === 'function') showToast('تعذر حفظ نسخة PDF في لوحة الأدمن: ' + uploadError, 'fa-triangle-exclamation'); }
         const portalRecorded = await notifyPortalReportCompleted(draftKey, config.title || draftKey, proj, savedFilename, trackingWindow, pdfPath);
         pdf.save(savedFilename);
         if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
@@ -2243,7 +2243,7 @@ async function downloadPDF(){
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${englishSafe || 'report'}.pdf`;
         const pdfBlob = pdf.output('blob');
         const pdfPath = await uploadPdfToPortal(pdfBlob, savedFilename);
-        if (!pdfPath) console.warn('نسخة PDF لم تُرفع إلى البوابة: ' + (window.__pdfUploadError || 'unknown_error'));
+        if (!pdfPath) { const uploadError = window.__pdfUploadError || 'unknown_error'; console.warn('نسخة PDF لم تُرفع إلى البوابة: ' + uploadError); if (typeof showToast === 'function') showToast('تعذر حفظ نسخة PDF في لوحة الأدمن: ' + uploadError, 'fa-triangle-exclamation'); }
         const portalRecorded = await notifyPortalReportCompleted((currentReport && (currentReport.id || currentReport.key)) || 'dynamic-report', (currentReport && (currentReport.title || currentReport.name)) || currentCatName || 'Report', title, savedFilename, trackingWindow, pdfPath);
         pdf.save(savedFilename);
         if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
