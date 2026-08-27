@@ -1099,15 +1099,27 @@ async function uploadPdfToPortal(pdfBlob, pdfFilename) {
         const tokenPart = PORTAL_TOKEN.split('.')[0] || '';
         const uniquePart = (window.crypto && crypto.randomUUID) ? crypto.randomUUID().replace(/-/g,'') : (Date.now().toString(36) + Math.random().toString(36).slice(2));
         const storedPath = 'report_' + tokenPart.slice(-12) + '_' + uniquePart.slice(0,20) + '.pdf';
-        const formData = new FormData();
-        formData.append('portal_token', PORTAL_TOKEN);
-        formData.append('pdf_path', storedPath);
-        formData.append('pdf', pdfBlob, pdfFilename);
-        await fetch(PORTAL_PDF_UPLOAD_ENDPOINT, {method:'POST', mode:'no-cors', body:formData, cache:'no-store', keepalive:true});
-        await new Promise(resolve => setTimeout(resolve, 500));
+        const frameName = 'pdf_upload_' + Date.now().toString(36);
+        const iframe = document.createElement('iframe');
+        iframe.name = frameName;
+        iframe.style.cssText = 'position:fixed;width:1px;height:1px;left:-10000px;top:-10000px;border:0;opacity:0;';
+        document.body.appendChild(iframe);
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = PORTAL_PDF_UPLOAD_ENDPOINT;
+        form.target = frameName;
+        form.enctype = 'multipart/form-data';
+        form.style.display = 'none';
+        const tokenInput = document.createElement('input'); tokenInput.type = 'hidden'; tokenInput.name = 'portal_token'; tokenInput.value = PORTAL_TOKEN;
+        const pathInput = document.createElement('input'); pathInput.type = 'hidden'; pathInput.name = 'pdf_path'; pathInput.value = storedPath;
+        const fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.name = 'pdf';
+        const transfer = new DataTransfer(); transfer.items.add(new File([pdfBlob], pdfFilename, {type:'application/pdf'})); fileInput.files = transfer.files;
+        form.append(tokenInput, pathInput, fileInput); document.body.appendChild(form); form.submit();
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        form.remove(); iframe.remove();
         return storedPath;
     } catch (error) {
-        window.__pdfUploadError = 'network_or_cors';
+        window.__pdfUploadError = 'direct_form_upload_failed';
         console.warn('PDF could not be uploaded to the portal:', error);
         return '';
     }
