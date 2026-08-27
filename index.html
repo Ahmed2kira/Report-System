@@ -1093,15 +1093,22 @@ const PORTAL_PDF_UPLOAD_ENDPOINT = 'https://aisuav.freedev.app/upload_report_pdf
 const PORTAL_TOKEN = new URLSearchParams(window.location.search).get('portal_token') || '';
 
 async function uploadPdfToPortal(pdfBlob, pdfFilename) {
-    if (!PORTAL_TOKEN || !pdfBlob) return '';
+    window.__pdfUploadError = '';
+    if (!PORTAL_TOKEN || !pdfBlob) { window.__pdfUploadError = 'missing_token_or_blob'; return ''; }
     try {
         const formData = new FormData();
         formData.append('portal_token', PORTAL_TOKEN);
         formData.append('pdf', pdfBlob, pdfFilename);
         const response = await fetch(PORTAL_PDF_UPLOAD_ENDPOINT, {method:'POST', mode:'cors', body:formData, cache:'no-store'});
         const result = await response.json();
-        return result && result.ok && result.pdf_path ? String(result.pdf_path) : '';
+        if (!response.ok || !result || !result.ok) {
+            window.__pdfUploadError = (result && result.error) ? String(result.error) : ('http_' + response.status);
+            console.warn('PDF upload rejected:', window.__pdfUploadError);
+            return '';
+        }
+        return result.pdf_path ? String(result.pdf_path) : '';
     } catch (error) {
+        window.__pdfUploadError = 'network_or_cors';
         console.warn('PDF could not be uploaded to the portal:', error);
         return '';
     }
@@ -2096,6 +2103,7 @@ async function downloadReportPDF(draftKey){
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${safe}.pdf`;
         const pdfBlob = pdf.output('blob');
         const pdfPath = await uploadPdfToPortal(pdfBlob, savedFilename);
+        if (!pdfPath) console.warn('نسخة PDF لم تُرفع إلى البوابة: ' + (window.__pdfUploadError || 'unknown_error'));
         const portalRecorded = await notifyPortalReportCompleted(draftKey, config.title || draftKey, proj, savedFilename, trackingWindow, pdfPath);
         pdf.save(savedFilename);
         if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
@@ -2235,6 +2243,7 @@ async function downloadPDF(){
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${englishSafe || 'report'}.pdf`;
         const pdfBlob = pdf.output('blob');
         const pdfPath = await uploadPdfToPortal(pdfBlob, savedFilename);
+        if (!pdfPath) console.warn('نسخة PDF لم تُرفع إلى البوابة: ' + (window.__pdfUploadError || 'unknown_error'));
         const portalRecorded = await notifyPortalReportCompleted((currentReport && (currentReport.id || currentReport.key)) || 'dynamic-report', (currentReport && (currentReport.title || currentReport.name)) || currentCatName || 'Report', title, savedFilename, trackingWindow, pdfPath);
         pdf.save(savedFilename);
         if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
