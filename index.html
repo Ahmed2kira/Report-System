@@ -1092,7 +1092,7 @@ const PORTAL_ACTIVITY_ENDPOINT = 'https://aisuav.freedev.app/report_activity.php
 const PORTAL_PDF_UPLOAD_ENDPOINT = 'https://aisuav.freedev.app/upload_report_pdf.php';
 const PORTAL_TOKEN = new URLSearchParams(window.location.search).get('portal_token') || '';
 
-async function uploadPdfToPortal(pdfBlob, pdfFilename) {
+async function uploadPdfToPortal(pdfBlob, pdfFilename, reportKey, reportTitle, projectName) {
     window.__pdfUploadError = '';
     if (!PORTAL_TOKEN || !pdfBlob) { window.__pdfUploadError = 'missing_token_or_blob'; return ''; }
     try {
@@ -1115,8 +1115,13 @@ async function uploadPdfToPortal(pdfBlob, pdfFilename) {
         form.enctype = 'application/x-www-form-urlencoded'; form.style.display = 'none';
         const tokenInput = document.createElement('input'); tokenInput.type = 'hidden'; tokenInput.name = 'portal_token'; tokenInput.value = PORTAL_TOKEN;
         const pathInput = document.createElement('input'); pathInput.type = 'hidden'; pathInput.name = 'pdf_path'; pathInput.value = storedPath;
+        const keyInput = document.createElement('input'); keyInput.type = 'hidden'; keyInput.name = 'report_key'; keyInput.value = reportKey || 'dynamic-report';
+        const titleInput = document.createElement('input'); titleInput.type = 'hidden'; titleInput.name = 'report_title'; titleInput.value = reportTitle || 'Report';
+        const projectInput = document.createElement('input'); projectInput.type = 'hidden'; projectInput.name = 'project_name'; projectInput.value = projectName || '';
+        const statusInput = document.createElement('input'); statusInput.type = 'hidden'; statusInput.name = 'status'; statusInput.value = 'completed';
+        const filenameInput = document.createElement('input'); filenameInput.type = 'hidden'; filenameInput.name = 'pdf_filename'; filenameInput.value = pdfFilename || 'report.pdf';
         const pdfInput = document.createElement('textarea'); pdfInput.name = 'pdf_base64'; pdfInput.value = dataUrl; pdfInput.style.display = 'none';
-        form.append(tokenInput, pathInput, pdfInput); document.body.appendChild(form);
+        form.append(tokenInput, pathInput, keyInput, titleInput, projectInput, statusInput, filenameInput, pdfInput); document.body.appendChild(form);
         await new Promise(resolve => {
             let settled = false;
             const finish = () => { if (!settled) { settled = true; resolve(); } };
@@ -2121,12 +2126,10 @@ async function downloadReportPDF(draftKey){
         const safe = (fileTitle + '_' + proj).replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').substring(0,40) || 'report';
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${safe}.pdf`;
         const pdfBlob = pdf.output('blob');
-        const pdfPath = await uploadPdfToPortal(pdfBlob, savedFilename);
+        const pdfPath = await uploadPdfToPortal(pdfBlob, savedFilename, draftKey, config.title || draftKey, proj);
         if (!pdfPath) { const uploadError = window.__pdfUploadError || 'unknown_error'; console.warn('نسخة PDF لم تُرفع إلى البوابة: ' + uploadError); if (typeof showToast === 'function') showToast('تعذر حفظ نسخة PDF في لوحة الأدمن: ' + uploadError, 'fa-triangle-exclamation'); }
-        const portalRecorded = await notifyPortalReportCompleted(draftKey, config.title || draftKey, proj, savedFilename, trackingWindow, pdfPath);
         pdf.save(savedFilename);
-        if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
-        showToast('تم تحميل التقرير بنجاح!');
+        showToast(pdfPath ? 'تم حفظ التقرير ورفعه إلى لوحة الأدمن بنجاح!' : 'تم تحميل التقرير على جهازك، لكن لم يتم حفظه في لوحة الأدمن', pdfPath ? 'fa-check' : 'fa-triangle-exclamation');
     }catch(e){
         console.error(e);
         showToast('حدث خطأ أثناء التحميل','fa-triangle-exclamation');
@@ -2261,12 +2264,12 @@ async function downloadPDF(){
         const englishSafe = currentLanguage === 'en' ? safe.replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'') : safe;
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${englishSafe || 'report'}.pdf`;
         const pdfBlob = pdf.output('blob');
-        const pdfPath = await uploadPdfToPortal(pdfBlob, savedFilename);
+        const reportKey = (currentReport && (currentReport.id || currentReport.key)) || 'dynamic-report';
+        const reportTitle = (currentReport && (currentReport.title || currentReport.name)) || currentCatName || 'Report';
+        const pdfPath = await uploadPdfToPortal(pdfBlob, savedFilename, reportKey, reportTitle, title);
         if (!pdfPath) { const uploadError = window.__pdfUploadError || 'unknown_error'; console.warn('نسخة PDF لم تُرفع إلى البوابة: ' + uploadError); if (typeof showToast === 'function') showToast('تعذر حفظ نسخة PDF في لوحة الأدمن: ' + uploadError, 'fa-triangle-exclamation'); }
-        const portalRecorded = await notifyPortalReportCompleted((currentReport && (currentReport.id || currentReport.key)) || 'dynamic-report', (currentReport && (currentReport.title || currentReport.name)) || currentCatName || 'Report', title, savedFilename, trackingWindow, pdfPath);
         pdf.save(savedFilename);
-        if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
-        showToast('تم تحميل التقرير بنجاح!');
+        showToast(pdfPath ? 'تم حفظ التقرير ورفعه إلى لوحة الأدمن بنجاح!' : 'تم تحميل التقرير على جهازك، لكن لم يتم حفظه في لوحة الأدمن', pdfPath ? 'fa-check' : 'fa-triangle-exclamation');
     }catch(e){console.error(e); showToast('حدث خطأ أثناء التحميل','fa-triangle-exclamation');}
 
     btn.disabled=false;
