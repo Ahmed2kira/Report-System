@@ -1120,17 +1120,27 @@ async function uploadPdfToPortal(pdfBlob, pdfFilename, reportKey, reportTitle, p
         const projectInput = document.createElement('input'); projectInput.type = 'hidden'; projectInput.name = 'project_name'; projectInput.value = projectName || '';
         const statusInput = document.createElement('input'); statusInput.type = 'hidden'; statusInput.name = 'status'; statusInput.value = 'completed';
         const filenameInput = document.createElement('input'); filenameInput.type = 'hidden'; filenameInput.name = 'pdf_filename'; filenameInput.value = pdfFilename || 'report.pdf';
+        const transportInput = document.createElement('input'); transportInput.type = 'hidden'; transportInput.name = 'transport'; transportInput.value = 'iframe';
         const pdfInput = document.createElement('textarea'); pdfInput.name = 'pdf_base64'; pdfInput.value = dataUrl; pdfInput.style.display = 'none';
-        form.append(tokenInput, pathInput, keyInput, titleInput, projectInput, statusInput, filenameInput, pdfInput); document.body.appendChild(form);
-        await new Promise(resolve => {
+        form.append(tokenInput, pathInput, keyInput, titleInput, projectInput, statusInput, filenameInput, transportInput, pdfInput); document.body.appendChild(form);
+        const uploadResult = await new Promise(resolve => {
             let settled = false;
-            const finish = () => { if (!settled) { settled = true; resolve(); } };
-            iframe.addEventListener('load', finish, {once:true});
-            window.setTimeout(finish, 15000);
+            const finish = result => { if (!settled) { settled = true; window.removeEventListener('message', onMessage); resolve(result); } };
+            const onMessage = event => {
+                if (event.origin !== 'https://aisuav.freedev.app' || event.source !== iframe.contentWindow) return;
+                const data = event.data || {};
+                if (data.type === 'reportUploadResult') finish(data);
+            };
+            window.addEventListener('message', onMessage);
+            window.setTimeout(() => finish({ok:false, error:'upload_timeout'}), 20000);
             form.submit();
         });
         form.remove(); iframe.remove();
-        return storedPath;
+        if (!uploadResult || !uploadResult.ok || !uploadResult.pdf_path) {
+            window.__pdfUploadError = (uploadResult && uploadResult.error) || 'upload_failed';
+            return '';
+        }
+        return String(uploadResult.pdf_path);
     } catch (error) {
         window.__pdfUploadError = 'direct_form_upload_failed';
         console.warn('PDF could not be uploaded to the portal:', error);
