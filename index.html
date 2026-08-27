@@ -1114,8 +1114,15 @@ async function uploadPdfToPortal(pdfBlob, pdfFilename) {
         const pathInput = document.createElement('input'); pathInput.type = 'hidden'; pathInput.name = 'pdf_path'; pathInput.value = storedPath;
         const fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.name = 'pdf';
         const transfer = new DataTransfer(); transfer.items.add(new File([pdfBlob], pdfFilename, {type:'application/pdf'})); fileInput.files = transfer.files;
-        form.append(tokenInput, pathInput, fileInput); document.body.appendChild(form); form.submit();
-        await new Promise(resolve => setTimeout(resolve, 1200));
+        form.append(tokenInput, pathInput, fileInput); document.body.appendChild(form);
+        // A direct form POST avoids CORS. The iframe load event fires when InfinityFree finishes processing it.
+        await new Promise(resolve => {
+            let settled = false;
+            const finish = () => { if (!settled) { settled = true; resolve(); } };
+            iframe.addEventListener('load', finish, {once:true});
+            window.setTimeout(finish, 10000);
+            form.submit();
+        });
         form.remove(); iframe.remove();
         return storedPath;
     } catch (error) {
