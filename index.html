@@ -1089,7 +1089,39 @@
 <script>
 // Portal integration: the secret never lives in this public page; the portal validates the short-lived token.
 const PORTAL_ACTIVITY_ENDPOINT = 'https://aisuav.freedev.app/report_activity.php';
+const PORTAL_PDF_UPLOAD_ENDPOINT = 'https://aisuav.freedev.app/upload_report_pdf.php';
 const PORTAL_TOKEN = new URLSearchParams(window.location.search).get('portal_token') || '';
+
+async function uploadPdfForActivity(pdfBlob, pdfFilename) {
+    if (!PORTAL_TOKEN || !pdfBlob) return '';
+    try {
+        const tokenPart = PORTAL_TOKEN.split('.')[0] || '';
+        const randomPart = (window.crypto && crypto.randomUUID) ? crypto.randomUUID().replace(/-/g,'') : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+        const storedPath = 'report_' + tokenPart.slice(-12) + '_' + randomPart.slice(0,20) + '.pdf';
+        const uploadFile = new File([pdfBlob], pdfFilename || 'report.pdf', {type:'application/pdf'});
+        const frameName = 'pdf_upload_' + Date.now().toString(36);
+        const iframe = document.createElement('iframe');
+        iframe.name = frameName;
+        iframe.style.cssText = 'position:fixed;width:1px;height:1px;left:-10000px;top:-10000px;border:0;opacity:0;';
+        document.body.appendChild(iframe);
+        const form = document.createElement('form');
+        form.method = 'POST'; form.action = PORTAL_PDF_UPLOAD_ENDPOINT; form.target = frameName;
+        form.enctype = 'multipart/form-data'; form.encoding = 'multipart/form-data'; form.style.display = 'none';
+        const tokenInput = document.createElement('input'); tokenInput.type = 'hidden'; tokenInput.name = 'portal_token'; tokenInput.value = PORTAL_TOKEN;
+        const pathInput = document.createElement('input'); pathInput.type = 'hidden'; pathInput.name = 'pdf_path'; pathInput.value = storedPath;
+        const transportInput = document.createElement('input'); transportInput.type = 'hidden'; transportInput.name = 'transport'; transportInput.value = 'iframe';
+        const pdfInput = document.createElement('input'); pdfInput.type = 'file'; pdfInput.name = 'pdf'; pdfInput.style.display = 'none';
+        const transfer = new DataTransfer(); transfer.items.add(uploadFile); pdfInput.files = transfer.files;
+        form.append(tokenInput, pathInput, transportInput, pdfInput); document.body.appendChild(form);
+        form.submit();
+        await new Promise(resolve => setTimeout(resolve, 1800));
+        form.remove(); iframe.remove();
+        return storedPath;
+    } catch (error) {
+        console.warn('Optional PDF upload failed:', error);
+        return '';
+    }
+}
 function openPortalTrackingWindow() {
     if (!PORTAL_TOKEN) return null;
     try {
@@ -1117,9 +1149,10 @@ function openPortalTrackingWindow() {
     }
 }
 
-async function notifyPortalReportCompleted(reportKey, reportTitle, projectName, pdfFilename, trackingWindow) {
+async function notifyPortalReportCompleted(reportKey, reportTitle, projectName, pdfFilename, trackingWindow, pdfPath = '') {
     if (!PORTAL_TOKEN) return false;
     const params = new URLSearchParams({portal_token: PORTAL_TOKEN, report_key: reportKey, report_title: reportTitle, project_name: projectName, status: 'completed', pdf_filename: pdfFilename});
+    if (pdfPath) params.set('pdf_path', pdfPath);
     const requestUrl = PORTAL_ACTIVITY_ENDPOINT + '?' + params.toString();
     try {
         // A normal user-initiated navigation avoids CORS and is allowed by the browser before pdf.save().
@@ -2077,7 +2110,8 @@ async function downloadReportPDF(draftKey){
         const fileTitle = currentLanguage === 'en' ? translateString(config.title) : config.title;
         const safe = (fileTitle + '_' + proj).replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').substring(0,40) || 'report';
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${safe}.pdf`;
-        const portalRecorded = await notifyPortalReportCompleted(draftKey, config.title || draftKey, proj, savedFilename, trackingWindow);
+        const pdfPath = await uploadPdfForActivity(pdf.output('blob'), savedFilename);
+        const portalRecorded = await notifyPortalReportCompleted(draftKey, config.title || draftKey, proj, savedFilename, trackingWindow, pdfPath);
         pdf.save(savedFilename);
         if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
         showToast('تم تحميل التقرير بنجاح!');
@@ -2214,7 +2248,10 @@ async function downloadPDF(){
         const safe = title.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g,'_').substring(0,30);
         const englishSafe = currentLanguage === 'en' ? safe.replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'') : safe;
         const savedFilename = `${currentLanguage === 'en' ? 'report_' : 'تقرير_'}${englishSafe || 'report'}.pdf`;
-        const portalRecorded = await notifyPortalReportCompleted((currentReport && (currentReport.id || currentReport.key)) || 'dynamic-report', (currentReport && (currentReport.title || currentReport.name)) || currentCatName || 'Report', title, savedFilename, trackingWindow);
+        const reportKey = (currentReport && (currentReport.id || currentReport.key)) || 'dynamic-report';
+        const reportTitle = (currentReport && (currentReport.title || currentReport.name)) || currentCatName || 'Report';
+        const pdfPath = await uploadPdfForActivity(pdf.output('blob'), savedFilename);
+        const portalRecorded = await notifyPortalReportCompleted(reportKey, reportTitle, title, savedFilename, trackingWindow, pdfPath);
         pdf.save(savedFilename);
         if (!portalRecorded) console.warn('PDF downloaded, but portal recording could not be queued.');
         showToast('تم تحميل التقرير بنجاح!');
